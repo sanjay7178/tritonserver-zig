@@ -169,4 +169,8 @@ pub fn build(b: *std.Build) void {
     
     // Depend on the translated C code as a Zig module.
     mod.addImport("translated", t.mod);
+
+    exe.root_module.addLibraryPath(b.path("core/build/install/lib"));
+    exe.root_module.addRPath(b.path("core/build/install/lib"));
+    exe.root_module.linkSystemLibrary("tritonserver", .{});
 }

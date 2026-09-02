@@ -24,5 +24,6 @@ pub fn check(err: ?*c.TRITONSERVER_Error) TritonErr!void {
         c.TRITONSERVER_ERROR_UNSUPPORTED => error.Unsupported,
         c.TRITONSERVER_ERROR_ALREADY_EXISTS => error.AlreadyExists,
         c.TRITONSERVER_ERROR_CANCELLED => error.Cancelled,
+        else => error.Unknown,
     };
 }

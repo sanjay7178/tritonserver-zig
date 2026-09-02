@@ -151,4 +151,22 @@ pub fn build(b: *std.Build) void {
     //
     // Lastly, the Zig build system is relatively simple and self-contained,
     // and reading its source code will allow you to master it.
+
+    // An abstraction to make using translate-c as simple as possible.
+    const Translator = @import("translate_c").Translator;
+    
+    const translate_c = b.dependency("translate_c", .{});
+    
+    const t: Translator = .init(translate_c, .{
+        .c_source_file = b.path("core/include/triton/core/tritonserver.h"),
+        .target = target,
+        // This is the optimization mode of the C code being translated and
+        // the resulting Zig code.
+        .optimize = optimize,
+        // more options go here (see below)
+    });
+    // If you want, you can now call methods on `Translator` to add include paths (etc).
+    
+    // Depend on the translated C code as a Zig module.
+    mod.addImport("translated", t.mod);
 }

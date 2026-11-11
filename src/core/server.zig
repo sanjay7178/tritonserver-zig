@@ -37,12 +37,14 @@ pub const Server = struct {
     on_error: ?*const fn ([]const u8) void,
     stopped: bool = false,
 
-    pub fn inferAsync(self: *const Server, alloc: std.mem.Allocator, request: *Request) !inference.PendingInference {
-        return inference.submit(self, alloc, request);
+    /// Io must remain alive through completion and support native callback
+    /// threads (std.Io.Threaded). The pending owner retains a copy of the handle.
+    pub fn inferAsync(self: *const Server, alloc: std.mem.Allocator, io: std.Io, request: *Request) !inference.PendingInference {
+        return inference.submit(self, alloc, io, request);
     }
 
-    pub fn inferSync(self: *const Server, alloc: std.mem.Allocator, request: *Request) !InferenceResponse {
-        var pending = try self.inferAsync(alloc, request);
+    pub fn inferSync(self: *const Server, alloc: std.mem.Allocator, io: std.Io, request: *Request) !InferenceResponse {
+        var pending = try self.inferAsync(alloc, io, request);
         defer pending.deinit();
         return pending.wait();
     }

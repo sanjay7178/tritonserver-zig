@@ -44,7 +44,7 @@ fn expectBatchInfo(response: *const t.InferenceResponse, samples: usize, total: 
 test "scheduler merges eight copied inputs and futures outlive scheduler and server" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{
         .worker_count = 1,
         .max_wait_us = 1_000_000,
         .queue_capacity = 32,
@@ -83,7 +83,7 @@ test "scheduler merges eight copied inputs and futures outlive scheduler and ser
 test "scheduler combines mixed logical batch sizes and splits each complete result" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_fixed", 1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", 1, .{
         .worker_count = 1,
         .max_wait_us = 1_000_000,
     });
@@ -119,7 +119,7 @@ test "scheduler combines mixed logical batch sizes and splits each complete resu
 test "scheduler canonicalizes multiple inputs and requested output order before merging" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_multi", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_multi", -1, .{
         .worker_count = 1,
         .max_wait_us = 1_000_000,
     });
@@ -174,7 +174,7 @@ test "scheduler canonicalizes multiple inputs and requested output order before 
 test "different requested outputs partition scheduled batches" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{
         .worker_count = 1,
         .max_wait_us = 1_000,
     });
@@ -201,7 +201,7 @@ test "different requested outputs partition scheduled batches" {
 test "different dynamic inner dimensions are not concatenated" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_dynamic", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_dynamic", -1, .{
         .worker_count = 1,
         .max_wait_us = 1_000,
     });
@@ -225,7 +225,7 @@ test "different dynamic inner dimensions are not concatenated" {
 test "nonbatching models pass through one logical request at a time" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_nonbatch", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_nonbatch", -1, .{
         .worker_count = 2,
         .max_wait_us = 1_000,
     });
@@ -254,11 +254,11 @@ test "nonbatching models pass through one logical request at a time" {
 test "scheduler rejects invalid options and tensors before dispatch" {
     var server = try startServer();
     defer destroyServer(&server);
-    try testing.expectError(error.InvalidSchedulerOptions, t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{ .max_batch_size = 0 }));
-    try testing.expectError(error.InvalidSchedulerOptions, t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{ .max_batch_size = 9 }));
-    try testing.expectError(error.InvalidSchedulerOptions, t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{ .worker_count = 0 }));
-    try testing.expectError(error.InvalidSchedulerOptions, t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{ .queue_capacity = 0 }));
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{});
+    try testing.expectError(error.InvalidSchedulerOptions, t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{ .max_batch_size = 0 }));
+    try testing.expectError(error.InvalidSchedulerOptions, t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{ .max_batch_size = 9 }));
+    try testing.expectError(error.InvalidSchedulerOptions, t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{ .worker_count = 0 }));
+    try testing.expectError(error.InvalidSchedulerOptions, t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{ .queue_capacity = 0 }));
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{});
     defer scheduler.deinit();
     const input = try t.InputTensor.fromSlice(i32, "IN0", &.{ 1, 4 }, &.{ 1, 2, 3, 4 });
     const wrong_type = try t.InputTensor.fromSlice(f32, "IN0", &.{ 1, 4 }, &.{ 1, 2, 3, 4 });
@@ -296,13 +296,13 @@ test "scheduler rejects a model already using native dynamic batching" {
         .log_info = false,
     });
     defer destroyServer(&server);
-    try testing.expectError(error.NativeBatchingEnabled, t.Scheduler.init(testing.allocator, &server, "batching", -1, .{}));
+    try testing.expectError(error.NativeBatchingEnabled, t.Scheduler.init(testing.allocator, testing.io, &server, "batching", -1, .{}));
 }
 
 test "asynchronous execution errors complete futures and leave worker reusable" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{
         .worker_count = 1,
         .max_wait_us = 1_000_000,
     });
@@ -328,7 +328,7 @@ test "asynchronous execution errors complete futures and leave worker reusable" 
 }
 
 fn schedulerAllocationCase(alloc: std.mem.Allocator, server: *t.Server) !void {
-    var scheduler = try t.Scheduler.init(alloc, server, "phase4_fixed", -1, .{
+    var scheduler = try t.Scheduler.init(alloc, testing.io, server, "phase4_fixed", -1, .{
         .worker_count = 1,
         .max_wait_us = 0,
     });
@@ -352,7 +352,7 @@ test "scheduler allocation failures release partial initialization and completed
 test "malformed aggregate output fails every split including singleton batches" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_malformed", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_malformed", -1, .{
         .worker_count = 1,
         .max_wait_us = 1_000,
     });
@@ -383,7 +383,7 @@ fn waitForDispatch(scheduler: *t.Scheduler) !void {
 test "bounded queue rejects overflow and shutdown drains accepted work" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{
         .worker_count = 1,
         .max_wait_us = 0,
         // Capacity includes the executing request and the queued request.
@@ -450,7 +450,7 @@ const Producer = struct {
 test "concurrent producers racing shutdown complete every accepted future" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "phase4_fixed", -1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_fixed", -1, .{
         .worker_count = 2,
         .max_wait_us = 1_000,
         .queue_capacity = 8,

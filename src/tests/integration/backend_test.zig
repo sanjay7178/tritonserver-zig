@@ -70,7 +70,7 @@ test "Zig backend preserves bytes for every supported fixed width datatype" {
         // the backend must not reinterpret, round, or normalize these bytes.
         try request.addInputBytes(case.datatype, "IN0", &.{4}, bytes);
         try request.requestOutput("OUT0");
-        var response = try server.inferSync(testing.allocator, &request);
+        var response = try server.inferSync(testing.allocator, testing.io, &request);
         defer response.deinit();
         try expectBytes(&response, case.datatype, &.{4}, bytes);
     }
@@ -85,7 +85,7 @@ test "Zig backend handles rank two inputs and output ownership survives server d
     const expected = values;
     try request.addInput(i32, "IN0", &.{ 2, 3 }, &values);
     @memset(&values, 0);
-    var response = try server.inferSync(testing.allocator, &request);
+    var response = try server.inferSync(testing.allocator, testing.io, &request);
     defer response.deinit();
     try request.deinit();
     try server.stop();
@@ -107,7 +107,7 @@ test "Zig backend concatenates raw CPU and pinned input segments without assumin
     // segment as an aligned typed tensor. These buffers stay alive until wait.
     try t.check(c.TRITONSERVER_InferenceRequestAppendInputData(handle, "IN0", bytes.ptr, 3, c.TRITONSERVER_MEMORY_CPU, 0));
     try t.check(c.TRITONSERVER_InferenceRequestAppendInputData(handle, "IN0", bytes[3..].ptr, bytes.len - 3, c.TRITONSERVER_MEMORY_CPU_PINNED, 0));
-    var response = try server.inferSync(testing.allocator, &request);
+    var response = try server.inferSync(testing.allocator, testing.io, &request);
     defer response.deinit();
     try expectBytes(&response, .int32, &.{ 2, 3 }, bytes);
 }
@@ -130,7 +130,7 @@ test "Zig backend processes independent native dynamically batched requests" {
         request.* = try t.Request.init(testing.allocator, &server, "zig_native_dynamic", 1);
         created += 1;
         try request.addInput(i32, "IN0", &.{ 1, 4 }, row);
-        operation.* = try server.inferAsync(testing.allocator, request);
+        operation.* = try server.inferAsync(testing.allocator, testing.io, request);
         submitted += 1;
     }
     for (&pending, values) |*operation, row| {
@@ -143,7 +143,7 @@ test "Zig backend processes independent native dynamically batched requests" {
 test "Zig scheduler batches B1 B3 B4 through the Zig backend and restores caller shapes" {
     var server = try startServer();
     defer destroyServer(&server);
-    var scheduler = try t.Scheduler.init(testing.allocator, &server, "zig_fixed_batch", 1, .{
+    var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "zig_fixed_batch", 1, .{
         .max_batch_size = 8,
         .max_wait_us = 1_000_000,
         .worker_count = 1,
@@ -200,7 +200,7 @@ const ConcurrentCaller = struct {
             var request = try t.Request.init(alloc, self.server, "zig_multi", 1);
             defer destroyRequest(&request);
             try request.addInput(f32, "IN0", &shape, values[0 .. inner * 2]);
-            var response = try self.server.inferSync(alloc, &request);
+            var response = try self.server.inferSync(alloc, testing.io, &request);
             defer response.deinit();
             const output = try response.output("OUT0");
             if (!std.mem.eql(i64, &shape, output.shape) or
@@ -234,20 +234,20 @@ test "Zig backend reports invalid request errors and its instance remains usable
         var request = try t.Request.init(testing.allocator, &server, "zig_nonbatch", 1);
         defer destroyRequest(&request);
         try request.addInput(f32, "IN0", &.{ 2, 3 }, &.{ 1, 2, 3, 4, 5, 6 });
-        try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, &request));
+        try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, testing.io, &request));
     }
     {
         var request = try t.Request.init(testing.allocator, &server, "zig_nonbatch", 1);
         defer destroyRequest(&request);
         try request.addInput(i32, "IN0", &.{ 2, 3 }, &.{ 1, 2, 3, 4, 5, 6 });
         try request.requestOutput("NO_SUCH_OUTPUT");
-        try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, &request));
+        try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, testing.io, &request));
     }
     var good = try t.Request.init(testing.allocator, &server, "zig_nonbatch", 1);
     defer destroyRequest(&good);
     const values = [_]i32{ 1, 2, 3, 4, 5, 6 };
     try good.addInput(i32, "IN0", &.{ 2, 3 }, &values);
-    var response = try server.inferSync(testing.allocator, &good);
+    var response = try server.inferSync(testing.allocator, testing.io, &good);
     defer response.deinit();
     try expectBytes(&response, .int32, &.{ 2, 3 }, std.mem.sliceAsBytes(&values));
 }
@@ -264,12 +264,12 @@ test "CPU Zig backend rejects a device tag without reading its address and compl
     // Fixed-width validation needs only shape and byte count. The CPU engine
     // must reject this device tag before interpreting the address as host RAM.
     try t.check(c.TRITONSERVER_InferenceRequestAppendInputData(handle, "IN0", @ptrFromInt(0x1000), @sizeOf(@TypeOf(values)), c.TRITONSERVER_MEMORY_GPU, 0));
-    try testing.expectError(error.Unsupported, server.inferSync(testing.allocator, &request));
+    try testing.expectError(error.Unsupported, server.inferSync(testing.allocator, testing.io, &request));
     try testing.expect(!request.in_flight);
     // Reuse the released request after an actual backend execution failure.
     try t.check(c.TRITONSERVER_InferenceRequestRemoveAllInputData(handle, "IN0"));
     try t.check(c.TRITONSERVER_InferenceRequestAppendInputData(handle, "IN0", &values, @sizeOf(@TypeOf(values)), c.TRITONSERVER_MEMORY_CPU, 0));
-    var response = try server.inferSync(testing.allocator, &request);
+    var response = try server.inferSync(testing.allocator, testing.io, &request);
     defer response.deinit();
     try expectBytes(&response, .int32, &.{ 2, 3 }, std.mem.sliceAsBytes(&values));
 }

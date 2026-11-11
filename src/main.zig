@@ -9,7 +9,7 @@ pub fn main(init: std.process.Init) !void {
 
     // Triton expects a repository containing directories named after models.
     // An empty repository is sufficient for this standalone server sample.
-    const repo_path = "/home/sanjay7178/tritonserver-zig/examples/minimal";
+    const repo_path = ".tritonserver-zig-sample-model-repository";
 
 
     var opts: ?*t.c.TRITONSERVER_ServerOptions = null;

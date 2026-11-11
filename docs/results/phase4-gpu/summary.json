@@ -1,0 +1,315 @@
+{
+  "date": "2026-11-11",
+  "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "vram_mib": 6141,
+  "driver": "595.104.02",
+  "cuda_runtime_major": 12,
+  "optimization": "ReleaseFast",
+  "desktop_baseline": {
+    "source": "nvidia-smi",
+    "description": "Desktop baseline before compute experiments",
+    "samples": [
+      {
+        "gpu_percent": 29.0,
+        "memory_percent": 1.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 11.59
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 380.0,
+        "temperature_c": 56.0,
+        "power_w": 11.59
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 382.0,
+        "temperature_c": 56.0,
+        "power_w": 11.6
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 11.6
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 11.61
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 380.0,
+        "temperature_c": 56.0,
+        "power_w": 5.82
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 380.0,
+        "temperature_c": 56.0,
+        "power_w": 5.92
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 380.0,
+        "temperature_c": 56.0,
+        "power_w": 7.97
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 9.38
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 9.85
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 380.0,
+        "temperature_c": 56.0,
+        "power_w": 10.56
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 11.74
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 11.75
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 380.0,
+        "temperature_c": 56.0,
+        "power_w": 11.76
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 5.99
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 5.97
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 8.08
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 9.17
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 378.0,
+        "temperature_c": 56.0,
+        "power_w": 9.99
+      },
+      {
+        "gpu_percent": 23.0,
+        "memory_percent": 0.0,
+        "memory_mib": 380.0,
+        "temperature_c": 56.0,
+        "power_w": 10.7
+      }
+    ],
+    "mean_gpu_percent": 23.3
+  },
+  "cuda_execution_evidence": {
+    "onnxruntime_version": "1.23.2",
+    "provider": "CUDAExecutionProvider",
+    "cpu_fallback_disabled": true,
+    "use_tf32": false,
+    "batch_size": 1,
+    "output_shape": [
+      1,
+      8192
+    ],
+    "ones_output_verified": true,
+    "max_absolute_error": 0.0,
+    "kernel_counts": {
+      "MatMul": 4,
+      "Relu": 4
+    },
+    "profile": "gpu-kernel-evidence.json",
+    "verification_source": "Triton Python model initialize"
+  },
+  "distinct_output_and_mixed_batch_checks_passed": true,
+  "transport": "CPU tensors through CPU-only Triton core; real CUDA computation inside optional backends",
+  "runs": [
+    {
+      "name": "onnx-batch8",
+      "model": "gpu_mlp",
+      "concurrency": 16,
+      "workers": 1,
+      "warmup_seconds": 3,
+      "measurement_seconds": 15,
+      "baseline": {
+        "max_batch_size": 1,
+        "max_wait_us": 0,
+        "measurement_seconds": 15.105771154,
+        "completed_requests": 2094,
+        "completed_samples": 2094,
+        "samples_per_second": 138.6225157691145,
+        "latency_p50_us": 112081.08,
+        "latency_p95_us": 130780.277,
+        "latency_p99_us": 132573.928,
+        "queue_latency_mean_us": 107752.03669723017,
+        "mean_batch_samples": 1,
+        "dispatch_count": 2094,
+        "gpu_utilization_mean_percent": 96.76923076923077,
+        "gpu_utilization_samples": 65
+      },
+      "batched": {
+        "max_batch_size": 8,
+        "max_wait_us": 5000,
+        "measurement_seconds": 15.014043858,
+        "completed_requests": 16176,
+        "completed_samples": 16176,
+        "samples_per_second": 1077.3912846525268,
+        "latency_p50_us": 14552.824,
+        "latency_p95_us": 17082.727,
+        "latency_p99_us": 17911.724,
+        "queue_latency_mean_us": 7374.230690220079,
+        "mean_batch_samples": 8,
+        "dispatch_count": 2022,
+        "gpu_utilization_mean_percent": 92.96969696969697,
+        "gpu_utilization_samples": 66
+      },
+      "throughput_ratio": 7.77212329955833,
+      "observed_gpu_thresholds_met": true,
+      "raw_report": "onnx-batch8.json"
+    },
+    {
+      "name": "onnx-batch32",
+      "model": "gpu_mlp",
+      "concurrency": 64,
+      "workers": 1,
+      "warmup_seconds": 3,
+      "measurement_seconds": 15,
+      "baseline": {
+        "max_batch_size": 1,
+        "max_wait_us": 0,
+        "measurement_seconds": 15.42141846,
+        "completed_requests": 2295,
+        "completed_samples": 2295,
+        "samples_per_second": 148.8189952145297,
+        "latency_p50_us": 428533.541,
+        "latency_p95_us": 440092.857,
+        "latency_p99_us": 442701.732,
+        "queue_latency_mean_us": 417382.7996627451,
+        "mean_batch_samples": 1,
+        "dispatch_count": 2295,
+        "gpu_utilization_mean_percent": 93.671875,
+        "gpu_utilization_samples": 64
+      },
+      "batched": {
+        "max_batch_size": 32,
+        "max_wait_us": 5000,
+        "measurement_seconds": 15.012107682,
+        "completed_requests": 51520,
+        "completed_samples": 51520,
+        "samples_per_second": 3431.896512557936,
+        "latency_p50_us": 18458.439,
+        "latency_p95_us": 20662.2,
+        "latency_p99_us": 22917.118,
+        "queue_latency_mean_us": 9311.379171273291,
+        "mean_batch_samples": 32,
+        "dispatch_count": 1610,
+        "gpu_utilization_mean_percent": 73.77272727272727,
+        "gpu_utilization_samples": 66
+      },
+      "throughput_ratio": 23.060876789355373,
+      "observed_gpu_thresholds_met": false,
+      "raw_report": "onnx-batch32.json"
+    },
+    {
+      "name": "cublas-batch8",
+      "model": "gpu_dense_mean",
+      "concurrency": 16,
+      "workers": 1,
+      "warmup_seconds": 3,
+      "measurement_seconds": 15,
+      "baseline": {
+        "max_batch_size": 1,
+        "max_wait_us": 0,
+        "measurement_seconds": 15.097866229,
+        "completed_requests": 2390,
+        "completed_samples": 2390,
+        "samples_per_second": 158.30051503630924,
+        "latency_p50_us": 100791.803,
+        "latency_p95_us": 104028.484,
+        "latency_p99_us": 105056.561,
+        "queue_latency_mean_us": 94397.38181548117,
+        "mean_batch_samples": 1,
+        "dispatch_count": 2390,
+        "gpu_utilization_mean_percent": 97.671875,
+        "gpu_utilization_samples": 64
+      },
+      "batched": {
+        "max_batch_size": 8,
+        "max_wait_us": 5000,
+        "measurement_seconds": 15.01104676,
+        "completed_requests": 18760,
+        "completed_samples": 18760,
+        "samples_per_second": 1249.746290178101,
+        "latency_p50_us": 12749.898,
+        "latency_p95_us": 13500.704,
+        "latency_p99_us": 15900.71,
+        "queue_latency_mean_us": 6356.904003038379,
+        "mean_batch_samples": 8,
+        "dispatch_count": 2345,
+        "gpu_utilization_mean_percent": 97.15873015873017,
+        "gpu_utilization_samples": 63
+      },
+      "throughput_ratio": 7.894770840710454,
+      "observed_gpu_thresholds_met": true,
+      "raw_report": "cublas-batch8.json"
+    }
+  ],
+  "limitations": [
+    "Synthetic dense workloads, not trained production models",
+    "Desktop graphics used the same GPU; utilization is device-wide busy time, not occupancy or process attribution",
+    "Baseline always ran first; thermals, clocks and execution order were not controlled",
+    "Observed GPU temperature reached 87 C during cuBLAS testing; no power, clock or fan settings were changed",
+    "An initial installed-build timing was excluded from the final ReleaseFast results"
+  ],
+  "qualified_observation": "GPU execution and numerical evidence accompanies these measured thresholds; the observations apply only to these synthetic workloads"
+}

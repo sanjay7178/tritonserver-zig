@@ -22,6 +22,7 @@ src/
       repository.zig               Filesystem discovery and version inventory
       metadata.zig                 Typed metadata/config JSON and owned model lists
     inference/                     Request builder, async callbacks and owned results
+    scheduler/                     Atomic ingress, timed batching and bounded workers
     internal/owned_arena.zig        Heap-stable snapshot ownership
   backend/                         Model execution / backend-author boundary
     examples/minimal/              Licensed upstream C++ reference plugin
@@ -30,6 +31,8 @@ src/
     command_line.zig               CLI options, validation and argument tests
     output.zig                     Model/tensor presentation
     inference_demo.zig             CPU inference acceptance demo
+    scheduler_demo.zig             Proof of Zig aggregation and output partitioning
+    scheduler_bench.zig            CPU/GPU workload comparison and JSON reports
     signals.zig                    Shutdown requests and handler restoration
   tests/
     unit/                          JSON/metadata and filesystem discovery tests
@@ -75,3 +78,19 @@ owned output decoding. The CLI demo consumes these library APIs; no model
 execution code is moved into the CLI. See [inference ownership](inference.md).
 Later network frontends belong in `src/server`, and Zig-native plugins/backend
 helpers belong in `src/backend` when the roadmap reaches that phase.
+
+Phase 4 scheduling is an opt-in layer in `src/core/scheduler`. A scheduler pins
+one model/version and validates its configuration. Producers copy tensor views
+into a bounded atomic MPSC queue; one dispatcher groups compatible jobs until
+their sample limit or monotonic deadline. A fixed worker pool creates aggregate
+requests through the existing inference API and partitions outputs into owned
+responses. The scheduler never replaces Triton's backend execution machinery.
+Its managed models disable Triton's native dynamic batching so that the Zig
+layer controls aggregation and its delay. The C++ proof backend remains a test
+fixture; it is separate from the later Zig-native backend milestone.
+
+Shutdown closes admission, accounts for producers already submitting, flushes
+partial batches, and joins dispatcher/workers after accepted operations finish.
+Future contexts and their results have independent storage and remain usable
+after scheduler destruction. See [scheduler usage and benchmarking](scheduler.md)
+for configuration, ownership, optional GPU experiments and performance limits.

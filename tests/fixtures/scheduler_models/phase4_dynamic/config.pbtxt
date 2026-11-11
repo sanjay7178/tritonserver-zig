@@ -1,0 +1,9 @@
+backend: "phase4_batch"
+max_batch_size: 8
+# Native dynamic_batching is deliberately absent: Zig must perform grouping.
+input [{ name: "IN0" data_type: TYPE_INT32 dims: [ -1 ] }]
+output [
+  { name: "OUT0" data_type: TYPE_INT32 dims: [ -1 ] },
+  { name: "BATCH_INFO" data_type: TYPE_INT64 dims: [ 3 ] }
+]
+instance_group [{ kind: KIND_CPU count: 1 }]

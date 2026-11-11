@@ -1,0 +1,5 @@
+gpu_batch: CUDA device 0=NVIDIA GeForce RTX 4050 Laptop GPU; hidden=4096 layers=16 max_batch=64; FP32 pedantic cuBLAS; CPU Triton transport
+B1 correct: 1 requests -> one batch of 1; output row means and shapes verified (width=64)
+Eight B1 correct: 8 requests -> one batch of 8; output row means and shapes verified (width=64)
+Mixed B1/B3/B4 correct: 3 requests -> one batch of 8; output row means and shapes verified (width=64)
+Numerical and scheduler ownership checks passed for gpu_dense_mean.

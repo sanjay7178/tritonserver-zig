@@ -25,6 +25,57 @@ pub const InferenceResponse = struct {
     }
 };
 
+pub fn clone(parent: std.mem.Allocator, source: *const InferenceResponse) !InferenceResponse {
+    return copyResponse(parent, source, null);
+}
+
+/// Copies a contiguous range along every output's leading batch dimension.
+pub fn sliceBatch(parent: std.mem.Allocator, source: *const InferenceResponse, start: usize, count: usize, total: usize) !InferenceResponse {
+    if (total == 0 or count == 0 or start > total or count > total - start)
+        return error.InvalidBatchRange;
+    const total_dim = std.math.cast(i64, total) orelse return error.ShapeOverflow;
+    const count_dim = std.math.cast(i64, count) orelse return error.ShapeOverflow;
+    return copyResponse(parent, source, .{ .start = start, .count = count, .total = total_dim, .count_dim = count_dim });
+}
+
+const BatchSlice = struct { start: usize, count: usize, total: i64, count_dim: i64 };
+
+fn copyResponse(parent: std.mem.Allocator, source: *const InferenceResponse, batch: ?BatchSlice) !InferenceResponse {
+    var storage = try OwnedArena.init(parent);
+    errdefer storage.deinit();
+    const alloc = storage.allocator();
+    const name = try alloc.dupe(u8, source.model_name);
+    const outputs = try alloc.alloc(OutputTensor, source.outputs.len);
+    for (source.outputs, outputs) |input, *output| {
+        if (try tensor.byteCount(input.datatype, input.shape) != input.data.len)
+            return error.InvalidOutputBuffer;
+        const shape = try alloc.dupe(i64, input.shape);
+        var begin: usize = 0;
+        var length = input.data.len;
+        if (batch) |part| {
+            if (shape.len == 0 or shape[0] != part.total) return error.InvalidBatchShape;
+            const row_bytes = try tensor.byteCount(input.datatype, shape[1..]);
+            const offset = @mulWithOverflow(part.start, row_bytes);
+            const size = @mulWithOverflow(part.count, row_bytes);
+            if (offset[1] != 0 or size[1] != 0) return error.ShapeOverflow;
+            begin = offset[0];
+            length = size[0];
+            if (begin > input.data.len or length > input.data.len - begin)
+                return error.InvalidOutputBuffer;
+            shape[0] = part.count_dim;
+        }
+        const data = try alloc.alignedAlloc(u8, .@"16", length);
+        @memcpy(data, input.data[begin..][0..length]);
+        output.* = .{
+            .name = try alloc.dupe(u8, input.name),
+            .datatype = input.datatype,
+            .shape = shape,
+            .data = data,
+        };
+    }
+    return .{ .storage = storage, .model_name = name, .model_version = source.model_version, .outputs = outputs };
+}
+
 pub fn decode(parent: std.mem.Allocator, raw: *c.TRITONSERVER_InferenceResponse, on_error: ?*const fn ([]const u8) void) !InferenceResponse {
     // The pinned core/src/tritonserver.cc accessor creates a NEW error via
     // RETURN_IF_STATUS_ERROR (also consumed by core's query_test.cc). Its header

@@ -3,7 +3,10 @@
 Zig bindings and server/model repository wrappers for the Triton Inference
 Server C API. Phases 1–3 of `triton_zig_roadmap.pdf` are implemented: manage
 a server, load a real repository, inspect metadata, and run asynchronous inference
-with owned, typed tensor results.
+with owned, typed tensor results. Phase 4 adds bounded software batching and
+worker scheduling, with CPU demonstrations and a comparison benchmark. Optional
+GPU experiments verify CUDA execution and numerical results on this machine;
+throughput and utilization remain workload-specific measurements.
 
 ## Project layout
 
@@ -39,6 +42,8 @@ just test
 just smoke
 just demo
 just infer-demo
+just scheduler-demo
+just scheduler-bench --duration-seconds 1 --warmup-seconds 0
 just run
 ```
 
@@ -60,8 +65,8 @@ cannot load. `--allow-model-errors --list-models --once` instead allows Triton
 to start and prints model failure reasons; an unready server still exits with
 an error after cleanup. A custom repository is never created automatically.
 
-This is an embedded C API server. HTTP/gRPC listeners and custom scheduling
-are outside the current milestone.
+This is an embedded C API server with an optional software scheduler.
+HTTP/gRPC listeners are outside the current milestone.
 
 ## Phase 2 CPU demo
 
@@ -101,8 +106,18 @@ compatibility changes.
 [CI](.github/workflows/ci.yml) runs on pull requests, pushes to `main`, merge
 queues and manual dispatch. One Linux job checks formatting and shell syntax,
 builds and tests Debug and ReleaseSafe, then checks startup, model loading and
-real CPU inference. The pinned Zig toolchain and installed native dependencies
+real CPU inference. Scheduler tests and a short batching benchmark also exercise
+the Phase 4 CPU path. The pinned Zig toolchain and installed native dependencies
 are cached; native build options or source changes invalidate the native cache.
+
+GPU checks are opt-in. Add the `gpu` label to a PR from this repository, or
+select `run_gpu` when manually running CI after the workflow is merged into
+`main`. Request them when a runner with `self-hosted`, `Linux`, `X64` and `gpu`
+labels is online. The GPU job runs CUDA correctness checks and a comparison
+benchmark, uploading the device information, numerical log and JSON results.
+Its host needs Docker access, NVIDIA Container Toolkit and a compatible driver;
+all other GPU build dependencies live in a pinned CUDA container. Ordinary PRs
+use GitHub-hosted CPU runners. GPU speed/utilization numbers do not gate CI.
 
 ## Server and repository API
 
@@ -203,3 +218,33 @@ The library exports `Request`, `PendingInference`, `InferenceResponse` and
 One-to-one models and fixed-width CPU tensors are supported in this phase.
 See [inference API, ownership and errors](docs/inference.md) for examples,
 concurrency/lifetime rules, test coverage and the pinned-runtime error contract.
+
+## Phase 4 scheduling and benchmarking
+
+`Scheduler` combines compatible queued requests into one native inference,
+dispatches batches across worker threads, and returns an owned response to each
+caller. Queue capacity, maximum batch samples and maximum batching delay are
+configurable. `InputTensor.fromSlice` accepts borrowed fixed-width data;
+submission copies it before returning. The server must outlive its scheduler.
+
+```sh
+just scheduler-demo
+just scheduler-bench
+```
+
+The demo verifies distinct callers' values and observes merged batches through
+a test backend. The release benchmark compares batch size 1/wait 0 against
+batch size 8/wait 5 ms, using the same workload, worker count and concurrency.
+Its JSON report includes samples per second, p50/p95/p99 end-to-end latency,
+mean queue latency, mean batch samples and dispatch count. A CPU pass-through
+model may not benefit from batching; a short CI smoke run makes no speed claim.
+
+For a real model, specify its repository, backend directory, name, version and
+a JSON tensor workload. Optional `--gpu-index 0` measures device utilization
+with `nvidia-smi`; requested GPU query failures are errors. The report separates
+observed device-level thresholds from verified GPU execution and correctness.
+See [scheduler API, ownership and benchmark methodology](docs/scheduler.md)
+for complete commands, input format, limitations and GPU validation guidance.
+The [optional GPU experiments](docs/scheduler.md#optional-gpu-experiments) include
+real CUDA/cuBLAS and ONNX Runtime workloads, numerical verification and recorded
+hardware results. Their dependencies and generated weights stay outside CPU CI.

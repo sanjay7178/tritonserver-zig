@@ -1,0 +1,147 @@
+{
+  "source": "nvidia-smi",
+  "description": "Desktop baseline before compute experiments",
+  "samples": [
+    {
+      "gpu_percent": 29.0,
+      "memory_percent": 1.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 11.59
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 380.0,
+      "temperature_c": 56.0,
+      "power_w": 11.59
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 382.0,
+      "temperature_c": 56.0,
+      "power_w": 11.6
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 11.6
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 11.61
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 380.0,
+      "temperature_c": 56.0,
+      "power_w": 5.82
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 380.0,
+      "temperature_c": 56.0,
+      "power_w": 5.92
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 380.0,
+      "temperature_c": 56.0,
+      "power_w": 7.97
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 9.38
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 9.85
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 380.0,
+      "temperature_c": 56.0,
+      "power_w": 10.56
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 11.74
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 11.75
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 380.0,
+      "temperature_c": 56.0,
+      "power_w": 11.76
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 5.99
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 5.97
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 8.08
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 9.17
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 378.0,
+      "temperature_c": 56.0,
+      "power_w": 9.99
+    },
+    {
+      "gpu_percent": 23.0,
+      "memory_percent": 0.0,
+      "memory_mib": 380.0,
+      "temperature_c": 56.0,
+      "power_w": 10.7
+    }
+  ],
+  "mean_gpu_percent": 23.3
+}

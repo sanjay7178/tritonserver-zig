@@ -24,6 +24,8 @@ jobs:
         shell: bash
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 2
+      CMAKE_VERSION: 3.31.10
+      NATIVE_CACHE_VERSION: v1
       TRITON_INSTALL: ${{ github.workspace }}/core/build/install
       ZIG_LOCAL_PKG_DIR: ${{ github.workspace }}/zig-pkg
       COMMON_COMMIT: fd2237e516a7e863af65e327f5e4fbb2cba70f09
@@ -48,6 +50,10 @@ jobs:
         run: |
           zig fmt --check build.zig build.zig.zon src
           sh -n tools/build/build_demo_backend.sh
+          sh -n tools/build/build_scheduler_backend.sh
+          sh -n tools/experiments/gpu_batch/build.sh
+          sh -n tools/experiments/gpu_batch/setup.sh
+          zig fmt --check tools/experiments/gpu_batch/verify.zig
 
       - name: Install native build tools
         run: |
@@ -58,7 +64,7 @@ jobs:
             build-essential ninja-build python3-venv libboost-dev \
             rapidjson-dev libnuma-dev libgtest-dev libgmock-dev
           python3 -m venv "$RUNNER_TEMP/cmake"
-          "$RUNNER_TEMP/cmake/bin/pip" install --disable-pip-version-check cmake==3.31.10
+          "$RUNNER_TEMP/cmake/bin/pip" install --disable-pip-version-check "cmake==$CMAKE_VERSION"
           echo "$RUNNER_TEMP/cmake/bin" >> "$GITHUB_PATH"
 
       - name: Restore CPU dependencies
@@ -66,8 +72,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: core/build/install
-          # Workflow changes also invalidate pinned sources and build options.
-          key: triton-cpu-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/ci.yml', '.gitmodules', 'core/CMakeLists.txt', 'core/src/**', 'core/include/**') }}
+          # Bump NATIVE_CACHE_VERSION when changing native build flags. Other
+          # workflow updates can reuse the same pinned CPU installation.
+          key: triton-cpu-ubuntu24-${{ runner.arch }}-${{ env.NATIVE_CACHE_VERSION }}-${{ env.CMAKE_VERSION }}-${{ env.COMMON_COMMIT }}-${{ env.BACKEND_COMMIT }}-${{ env.PROTOBUF_COMMIT }}-${{ env.RE2_COMMIT }}-${{ hashFiles('core/CMakeLists.txt', 'core/src/**', 'core/include/**') }}
 
       - name: Fetch pinned native sources
         if: steps.native-cache.outputs.cache-hit != 'true'
@@ -178,3 +185,9 @@ jobs:
           zig build smoke
           zig build demo
           zig build infer-demo
+          zig build scheduler-demo
+
+      - name: Check benchmark harness
+        run: |
+          zig build scheduler-bench -Doptimize=ReleaseFast -- \
+            --duration-seconds 1 --warmup-seconds 0 --concurrency 16

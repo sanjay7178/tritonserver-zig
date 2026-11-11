@@ -1,0 +1,19 @@
+{
+  "onnxruntime_version": "1.23.2",
+  "provider": "CUDAExecutionProvider",
+  "cpu_fallback_disabled": true,
+  "use_tf32": false,
+  "batch_size": 1,
+  "output_shape": [
+    1,
+    8192
+  ],
+  "ones_output_verified": true,
+  "max_absolute_error": 0.0,
+  "kernel_counts": {
+    "MatMul": 4,
+    "Relu": 4
+  },
+  "profile": "gpu-kernel-evidence.json",
+  "verification_source": "Triton Python model initialize"
+}

@@ -4,6 +4,7 @@ const errors = @import("../bindings/error.zig");
 const Server = @import("../server.zig").Server;
 const OwnedArena = @import("../internal/owned_arena.zig").OwnedArena;
 const tensor = @import("tensor.zig");
+const DataType = @import("../bindings/datatype.zig").DataType;
 
 /// Owns the C request and copies of its inputs. Move only while idle; do not
 /// mutate/copy/deinitialize it until the pending operation has been waited.
@@ -43,14 +44,19 @@ pub const Request = struct {
     }
 
     pub fn addInput(self: *Request, comptime T: type, name: []const u8, shape: []const i64, data: []const T) !void {
-        const handle = try self.ensureIdle();
+        _ = try self.ensureIdle();
         const datatype = try tensor.dataType(T);
         if (try tensor.elementCount(shape) != data.len) return error.ElementCountMismatch;
+        return self.addInputBytes(datatype, name, shape, std.mem.sliceAsBytes(data));
+    }
+
+    pub fn addInputBytes(self: *Request, datatype: DataType, name: []const u8, shape: []const i64, bytes: []const u8) !void {
+        const handle = try self.ensureIdle();
+        if (try tensor.byteCount(datatype, shape) != bytes.len) return error.ElementCountMismatch;
         for (self.inputs.items) |existing| if (std.mem.eql(u8, existing, name)) return error.DuplicateInput;
         const alloc = self.storage.allocator();
         const name_z = try self.nameZ(name);
         const dims = try alloc.dupe(i64, shape);
-        const bytes = std.mem.sliceAsBytes(data);
         const copy = try alloc.alignedAlloc(u8, .@"16", bytes.len);
         @memcpy(copy, bytes);
         try self.inputs.ensureUnusedCapacity(alloc, 1);

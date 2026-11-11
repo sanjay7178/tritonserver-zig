@@ -1,0 +1,4 @@
+B1 correct: 1 requests -> one batch of 1; output row means and shapes verified (width=8192)
+Eight B1 correct: 8 requests -> one batch of 8; output row means and shapes verified (width=8192)
+Mixed B1/B3/B4 correct: 3 requests -> one batch of 8; output row means and shapes verified (width=8192)
+Numerical and scheduler ownership checks passed for gpu_mlp.

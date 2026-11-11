@@ -1,0 +1,219 @@
+{
+  "onnxruntime_version": "1.23.2",
+  "verification_source": "Triton Python model initialize",
+  "batch_size": 1,
+  "source_profile_location": ".zig-cache/gpu-experiment/profiles/triton-<pid>_<timestamp>.json",
+  "selection": "Node events whose names end with _kernel_time",
+  "removed_fields": [
+    "pid",
+    "tid",
+    "ts",
+    "thread_scheduling_stats"
+  ],
+  "kernel_count": 8,
+  "provider_counts": {
+    "CUDAExecutionProvider": 8
+  },
+  "kernels": [
+    {
+      "name": "MatMul_0_kernel_time",
+      "op_name": "MatMul",
+      "provider": "CUDAExecutionProvider",
+      "duration_us": 6089,
+      "input_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        },
+        {
+          "float": [
+            8192,
+            8192
+          ]
+        }
+      ],
+      "output_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Relu_0_kernel_time",
+      "op_name": "Relu",
+      "provider": "CUDAExecutionProvider",
+      "duration_us": 599,
+      "input_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ],
+      "output_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MatMul_1_kernel_time",
+      "op_name": "MatMul",
+      "provider": "CUDAExecutionProvider",
+      "duration_us": 35,
+      "input_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        },
+        {
+          "float": [
+            8192,
+            8192
+          ]
+        }
+      ],
+      "output_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Relu_1_kernel_time",
+      "op_name": "Relu",
+      "provider": "CUDAExecutionProvider",
+      "duration_us": 4,
+      "input_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ],
+      "output_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MatMul_2_kernel_time",
+      "op_name": "MatMul",
+      "provider": "CUDAExecutionProvider",
+      "duration_us": 8,
+      "input_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        },
+        {
+          "float": [
+            8192,
+            8192
+          ]
+        }
+      ],
+      "output_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Relu_2_kernel_time",
+      "op_name": "Relu",
+      "provider": "CUDAExecutionProvider",
+      "duration_us": 3,
+      "input_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ],
+      "output_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MatMul_3_kernel_time",
+      "op_name": "MatMul",
+      "provider": "CUDAExecutionProvider",
+      "duration_us": 6,
+      "input_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        },
+        {
+          "float": [
+            8192,
+            8192
+          ]
+        }
+      ],
+      "output_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Relu_3_kernel_time",
+      "op_name": "Relu",
+      "provider": "CUDAExecutionProvider",
+      "duration_us": 4,
+      "input_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ],
+      "output_type_shape": [
+        {
+          "float": [
+            1,
+            8192
+          ]
+        }
+      ]
+    }
+  ]
+}

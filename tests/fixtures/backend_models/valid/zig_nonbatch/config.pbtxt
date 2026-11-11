@@ -1,0 +1,6 @@
+name: "zig_nonbatch"
+backend: "zig_passthrough"
+max_batch_size: 0
+input [{ name: "IN0" data_type: TYPE_INT32 dims: [2, 3] }]
+output [{ name: "OUT0" data_type: TYPE_INT32 dims: [2, 3] }]
+instance_group [{ kind: KIND_CPU count: 1 }]

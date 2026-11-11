@@ -1,0 +1,7 @@
+name: "zig_invalid_decoupled"
+backend: "zig_passthrough"
+max_batch_size: 0
+input [{ name: "IN0" data_type: TYPE_INT32 dims: [4] }]
+output [{ name: "OUT0" data_type: TYPE_INT32 dims: [4] }]
+model_transaction_policy { decoupled: true }
+instance_group [{ kind: KIND_CPU count: 1 }]

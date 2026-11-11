@@ -11,6 +11,14 @@ test "linked Triton API is compatible with the imported header" {
     try testing.expect(minor >= c.TRITONSERVER_API_VERSION_MINOR);
 }
 
+test "linked backend API is compatible with the canonical translated header" {
+    var major: u32 = 0;
+    var minor: u32 = 0;
+    try t.check(c.TRITONBACKEND_ApiVersion(&major, &minor));
+    try testing.expectEqual(@as(u32, c.TRITONBACKEND_API_VERSION_MAJOR), major);
+    try testing.expect(minor >= c.TRITONBACKEND_API_VERSION_MINOR);
+}
+
 test "check consumes each C error and maps null to success" {
     try t.check(null);
     const cases = .{

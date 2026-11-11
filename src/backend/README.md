@@ -11,8 +11,12 @@ solely to validate real model loading and metadata. It is a reference dependency
 not a Zig-native backend implementation. Build it with `zig build demo-backend`
 or run `just demo`; the shared library is generated under ignored `.zig-cache`.
 
-A Zig-native plugin and its backend-author helpers belong here in the roadmap's
-backend phase. There is no additional Zig backend API in Phase 2. `src/core`
-loads plugins through Triton's existing C API; it never imports plugin source.
+Phase 5 adds the Zig-native pass-through plugin in `examples/zig_passthrough.zig`
+and the public `t.backend` authoring helpers. Build it with `just backend`, or
+load it in real Triton with `just backend-demo`. The optional CUDA copy module
+is compiled only with `-Dbackend-cuda=true`; `just backend-cuda-test` verifies it
+on local hardware. See [usage and ownership](../../docs/backend.md).
+
+`src/core` loads plugins through Triton's existing C API; it never imports plugin source.
 The pre-existing root-level `backend/` checkout remains an untouched upstream
 C/C++ dependency, distinct from this project's source organization.

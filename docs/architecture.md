@@ -42,6 +42,14 @@ core/                              Existing upstream C++ submodule/build depende
 backend/                           Pre-existing upstream C++ checkout/dependency
 ```
 
+## Upstream provenance
+
+The [symbol-level provenance index](upstream-provenance.md) records pinned
+repositories, source paths, C API contracts, Zig adaptations, regression tests,
+and native build flags. `src/core` wraps the native core; `Repository.scan` is
+an independent filesystem inventory, and `src/server` is a project CLI rather
+than an upstream HTTP/gRPC frontend port.
+
 ## Dependency and ownership boundaries
 
 `src/server` consumes the public library through `@import("tritonserver_zig")`.

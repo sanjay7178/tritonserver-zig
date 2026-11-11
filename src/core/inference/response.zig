@@ -26,9 +26,13 @@ pub const InferenceResponse = struct {
 };
 
 pub fn decode(parent: std.mem.Allocator, raw: *c.TRITONSERVER_InferenceResponse, on_error: ?*const fn ([]const u8) void) !InferenceResponse {
-    // The pinned core/src/tritonserver.cc accessor creates a NEW error via
-    // RETURN_IF_STATUS_ERROR (also consumed by core's query_test.cc). Its header
-    // incorrectly calls it borrowed. Consume once, matching this runtime.
+    // Upstream: core@eaff04d5d77eb1c32e98c573c90fb78b363c88c0
+    // src/tritonserver.cc::TRITONSERVER_InferenceResponseError creates an owned
+    // error via RETURN_IF_STATUS_ERROR, despite the header documenting a borrow.
+    // Consume exactly once for this runtime. Re-audit on every core update;
+    // protect with "asynchronous backend errors map and release all callback
+    // ownership" in src/tests/integration/inference_test.zig. API major/minor
+    // compatibility alone does not establish this ownership contract.
     try check(c.TRITONSERVER_InferenceResponseError(raw), on_error);
     var storage = try OwnedArena.init(parent);
     errdefer storage.deinit();

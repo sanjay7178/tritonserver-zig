@@ -11,7 +11,7 @@ pub fn main(init: std.process.Init) !void {
         .log_info = false,
     });
     defer server.deinit() catch |err| std.log.err("server cleanup: {s}", .{@errorName(err)});
-    var scheduler = try t.Scheduler.init(init.gpa, &server, "phase4_fixed", 1, .{
+    var scheduler = try t.Scheduler.init(init.gpa, init.io, &server, "phase4_fixed", 1, .{
         .max_batch_size = 8,
         .max_wait_us = 5_000,
         .worker_count = 2,

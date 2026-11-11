@@ -51,7 +51,7 @@ pub fn main(init: std.process.Init) !void {
         output.printModels(models.models);
     }
 
-    if (options.infer_demo) try inference_demo.run(init.gpa, &server);
+    if (options.infer_demo) try inference_demo.run(init.gpa, init.io, &server);
 
     if (!options.once) {
         std.debug.print("Model repository: {s}\nPress Ctrl-C to stop.\n", .{options.repository});

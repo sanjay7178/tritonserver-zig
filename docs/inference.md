@@ -7,8 +7,9 @@ of eight samples with shape `[8, 4]`.
 
 ## Library API
 
-The following is a function-body example with a live `server: *const t.Server`
-and a caller-provided `allocator`:
+The following is a function-body example with a live `server: *const t.Server`,
+a caller-provided `allocator`, and `io: std.Io` (for example `init.io` in main
+or `std.testing.io` in tests):
 
 ```zig
 const t = @import("tritonserver_zig");
@@ -17,7 +18,7 @@ defer request.deinit() catch @panic("request cleanup failed");
 try request.addInput(i32, "IN0", &.{4}, &.{ 1, 2, 3, 4 });
 try request.requestOutput("OUT0"); // Omit to request all outputs.
 
-var response = try server.inferSync(allocator, &request);
+var response = try server.inferSync(allocator, io, &request);
 defer response.deinit();
 const out = try response.output("OUT0");
 const values = try out.asSlice(i32); // Borrowed until response.deinit().
@@ -45,7 +46,7 @@ them and attempting to deinitialize multiple copies.
 ## Asynchronous ownership
 
 ```zig
-var pending = try server.inferAsync(allocator, &request);
+var pending = try server.inferAsync(allocator, io, &request);
 defer pending.deinit();
 // Independent requests can be submitted here before waiting.
 var response = try pending.wait();
@@ -56,16 +57,22 @@ defer response.deinit();
   ownership with Request and returns immediately without waiting for callbacks.
 - The response callback owns each non-null C response. FINAL may also carry a
   null response. Request ownership and copied inputs return only on RELEASE_ALL.
-- Each pending operation has a stable heap context, protected by a pthread mutex
-  and condition variable. This adapts the roadmap's older semaphore example to
-  the installed Zig toolchain. The waiter requires **both** FINAL and RELEASE_ALL;
+- Each pending operation retains the supplied `std.Io` handle and has a stable
+  heap context protected by `std.Io.Mutex` and `std.Io.Condition`. The I/O backend
+  must support synchronization from Triton's native worker threads;
+  `std.Io.Threaded` is supported. Keep the backend alive until wait/deinit returns.
+  The waiter requires **both** FINAL and RELEASE_ALL;
   their arrival order does not matter. Signaling alone never frees the context.
 - C output allocation callbacks use thread-safe libc allocation and return CPU
   memory regardless of the preferred location. The waiting thread copies results
   using the caller allocator. Raw responses are deleted before their allocator.
-- `PendingInference.wait` consumes the operation even if decoding fails. A second
-  wait returns `InferenceAlreadyCompleted`. `deinit` instead drains and discards
-  the result, without allocating an output snapshot. It can block.
+- `PendingInference.wait` is a cancelable wait and consumes the operation even
+  if it returns `Canceled` or decoding fails. On cancellation, it first drains
+  both native callbacks through an uncancelable wait, discards any raw response,
+  and returns request ownership. Returning `Canceled` may therefore block until
+  model execution finishes. A second wait returns `InferenceAlreadyCompleted`.
+  `deinit` drains and discards the result without allocating an output snapshot;
+  its wait is always uncancelable.
 - Pending operations have one owner/waiter. Keep Request at a stable address
   until wait/deinit finishes. Mutation or deletion through the same Request while
   pending returns `RequestInFlight`; this flag is not a shared-request lock.
@@ -82,6 +89,13 @@ Decoupled models are rejected during request creation with
 result views are not implemented. Raw C bindings remain available for extensions.
 There is no timeout that could return while C still owns callback state; drain
 accepted work even when an application error occurs.
+
+`io.concurrent`/`io.async` can compose callers of these APIs into Zig tasks.
+Canceling such a task does not cancel Triton execution or permit early deletion
+of its request, server, I/O backend, or callback context. Callbacks use
+uncancelable synchronization and never invoke the caller allocator. The
+condition wait reacquires the mutex before cleanup, so a signaled waiter cannot
+free the context while the notifying callback still holds that mutex.
 
 Input/model validation errors, immediate submission errors, backend error
 responses and output-copy allocation failures return Zig errors. The existing
@@ -102,7 +116,12 @@ library; review this contract when changing the upstream Triton runtime.
 request reuse, result lifetimes, four concurrent callers, invalid inputs and
 outputs, allocator failure at every caller-allocation site, pending draining,
 callback completion in both orders, null FINAL responses and zero-byte response
-allocation. A tiny test-only C++ backend under
+allocation. Additional tests block an Io task while a separate OS thread delivers
+the callbacks, then check both arrival orders, cancellation before the second
+callback, and uncancelable deinit. Event handshakes establish that the waiter
+actually blocked; tests do not rely on sleeps to order callbacks. Real concurrent
+Io tasks also verify pass-through outputs and request/response cleanup.
+A tiny test-only C++ backend under
 `tests/fixtures/backends/phase3_error` returns an execution error to exercise the
 accepted asynchronous error-response path. The licensed pass-through backend
 is unchanged. `just infer-demo` uses only the valid pass-through models.

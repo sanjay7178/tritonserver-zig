@@ -120,6 +120,7 @@ const closed_bit: usize = @as(usize, 1) << (@bitSizeOf(usize) - 1);
 const State = struct {
     parent: std.mem.Allocator,
     server: *const Server,
+    io: std.Io,
     models: model.ModelList,
     model_name: []const u8,
     version: i64,
@@ -334,7 +335,7 @@ const State = struct {
             try request.addInputBytes(input.datatype, input.name, dims, bytes);
         }
         for (batch.outputs) |name| try request.requestOutput(name);
-        var aggregate = try self.server.inferSync(work, &request);
+        var aggregate = try self.server.inferSync(work, self.io, &request);
         defer aggregate.deinit();
         if (self.metadata.max_batch_size != 0) {
             for (aggregate.outputs) |output| {
@@ -383,10 +384,12 @@ fn compatible(first: *const Job, other: *const Job) bool {
 /// may overlap. Serialize destruction with all other API calls. Keep Server
 /// stable/alive until shutdown returns; do not poll or stop it concurrently.
 /// Server.on_error may run concurrently on worker threads.
+/// Keep the supplied Io backend alive through shutdown. It must support native
+/// thread synchronization (std.Io.Threaded), including the inference callbacks.
 pub const Scheduler = struct {
     state: ?*State,
 
-    pub fn init(parent: std.mem.Allocator, server: *const Server, name: []const u8, version: i64, options: SchedulerOptions) !Scheduler {
+    pub fn init(parent: std.mem.Allocator, io: std.Io, server: *const Server, name: []const u8, version: i64, options: SchedulerOptions) !Scheduler {
         if (options.worker_count == 0 or options.queue_capacity == 0 or options.queue_capacity >= closed_bit or
             options.max_wait_us > std.math.maxInt(u64) / std.time.ns_per_us or options.max_batch_size == 0)
             return error.InvalidSchedulerOptions;
@@ -418,6 +421,7 @@ pub const Scheduler = struct {
         state.* = .{
             .parent = parent,
             .server = server,
+            .io = io,
             .models = models,
             .model_name = target.name,
             .version = target.version.?,
@@ -576,6 +580,7 @@ test "dispatcher preserves FIFO and oldest deadlines across full and delayed arr
     var state: State = .{
         .parent = std.testing.allocator,
         .server = undefined,
+        .io = std.testing.io,
         .models = undefined,
         .model_name = "policy-only",
         .version = 1,

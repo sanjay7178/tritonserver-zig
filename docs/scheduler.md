@@ -37,7 +37,7 @@ malformed output handling. These are test fixtures, not production models.
 ```zig
 const t = @import("tritonserver_zig");
 
-var scheduler = try t.Scheduler.init(allocator, &server, "my_model", 1, .{
+var scheduler = try t.Scheduler.init(allocator, io, &server, "my_model", 1, .{
     .max_batch_size = 8,
     .max_wait_us = 5_000,
     .worker_count = 2,
@@ -73,6 +73,9 @@ Keep the `Server` at a stable address and alive until `scheduler.shutdown()`
 returns. Do not poll, stop or delete the server concurrently with scheduler
 work. Shut down and deinitialize the scheduler before deleting the server.
 `Server.on_error` can run concurrently on worker threads and must be thread-safe.
+The `io: std.Io` supplied at initialization is also borrowed until shutdown
+returns: worker threads pass it to native inference completion. Use a backend
+supporting synchronization on native threads, such as `std.Io.Threaded`.
 
 The scheduler always uses `std.heap.c_allocator` for its internal cross-thread
 storage. The allocator passed to `submit` is used only by its single waiting

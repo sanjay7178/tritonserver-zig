@@ -22,6 +22,15 @@ const Context = struct {
     multiple_responses: bool = false,
 
     fn wait(self: *Context) std.Io.Cancelable!void {
+        // Upstream: core@eaff04d5d77eb1c32e98c573c90fb78b363c88c0
+        // include/triton/core/tritonserver.h::
+        // TRITONSERVER_InferenceResponseCompleteFn_t + RESPONSE_COMPLETE_FINAL
+        // TRITONSERVER_InferenceRequestReleaseFn_t + REQUEST_RELEASE_ALL
+        // This Zig adapter drains both contracts in either order, even for a
+        // null FINAL. Callbacks use libc allocation, never the caller allocator.
+        // Cancellation returns through PendingInference.wait, which drains these
+        // same contracts before freeing Context. It does not cancel C callbacks.
+        // Test: "completion context handles FINAL and RELEASE_ALL in either order".
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         while (!self.final or !self.released)

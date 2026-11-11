@@ -108,7 +108,8 @@ queues and manual dispatch. One Linux job checks formatting and shell syntax,
 builds and tests Debug and ReleaseSafe, then checks startup, model loading and
 real CPU inference. Scheduler tests and a short batching benchmark also exercise
 the Phase 4 CPU path. The pinned Zig toolchain and installed native dependencies
-are cached; native build options or source changes invalidate the native cache.
+are cached. Dependency versions and upstream sources are part of the cache key;
+the native recipe version is bumped when its build flags change.
 
 GPU checks are opt-in. Add the `gpu` label to a PR from this repository, or
 select `run_gpu` when manually running CI after the workflow is merged into
@@ -116,7 +117,8 @@ select `run_gpu` when manually running CI after the workflow is merged into
 labels is online. The GPU job runs CUDA correctness checks and a comparison
 benchmark, uploading the device information, numerical log and JSON results.
 Its host needs Docker access, NVIDIA Container Toolkit and a compatible driver;
-all other GPU build dependencies live in a pinned CUDA container. Ordinary PRs
+all other GPU build dependencies live in a pinned CUDA container using host
+networking. Ordinary PRs
 use GitHub-hosted CPU runners. GPU speed/utilization numbers do not gate CI.
 
 ## Server and repository API

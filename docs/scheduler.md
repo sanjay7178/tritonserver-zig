@@ -302,7 +302,9 @@ The runner host needs Docker and NVIDIA Container Toolkit configured for
 `docker run --gpus all`, plus a compatible NVIDIA driver. CI does not install
 host drivers or modify Docker configuration. A pinned CUDA 12.6.3 Ubuntu 24.04
 container supplies the GPU development environment and matches the CPU-built
-Triton artifact's userspace. The CPU job shares its native installation through
+Triton artifact's userspace. It is launched explicitly with host networking,
+avoiding GitHub's temporary Docker bridge network; no host Docker configuration
+is changed. Docker's data root must still be healthy. The CPU job shares its native installation through
 a tar archive, preserving permissions and avoiding another native build.
 
 GPU CI reruns ReleaseSafe tests, checks distinct CUDA outputs and mixed batch

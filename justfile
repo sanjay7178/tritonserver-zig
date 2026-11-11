@@ -1,5 +1,8 @@
 # https://just.systems
 
+export ZIG_GLOBAL_CACHE_DIR := env("ZIG_GLOBAL_CACHE_DIR", "/tmp/tritonserver-zig-global-cache")
+export ZIG_LOCAL_PKG_DIR := env("ZIG_LOCAL_PKG_DIR", justfile_directory() / "zig-pkg")
+
 default:
     @just --help
 
@@ -12,10 +15,21 @@ release mode="fast":
     zig build -Doptimize=Release{{ capitalize(mode) }}
 
 # Build and run the starter using a writable cache and local dependencies
+[positional-arguments]
 run *args:
-    ZIG_GLOBAL_CACHE_DIR="${ZIG_GLOBAL_CACHE_DIR:-/tmp/tritonserver-zig-global-cache}" \
-      ZIG_LOCAL_PKG_DIR="${ZIG_LOCAL_PKG_DIR:-$PWD/zig-pkg}" \
-      zig build run -- {{ args }}
+    zig build run -- "$@"
+
+# Verify the Phase 1 lifecycle milestone and exit
+smoke:
+    zig build smoke
+
+# Load the real CPU demo repository, list metadata and shut down
+demo:
+    zig build demo
+
+# Send real inference requests and verify typed CPU outputs
+infer-demo:
+    zig build infer-demo
 
 # build the linker
 # Configure and build only libtritonserver.so; skip Python wheel.

@@ -1,8 +1,33 @@
 //! Public API for the Triton Server Zig bindings.
-pub const c = @import("translated");
-pub const TritonErr = @import("error.zig").TritonErr;
-pub const check = @import("error.zig").check;
-const std = @import("std");
-const Io = std.Io;
-pub const DataType = @import("datatype.zig").DataType;
-pub const MemoryType = @import("datatype.zig").MemoryType;
+//!
+//! `c` exposes the complete upstream tritonserver.h API. Handles are opaque;
+//! follow the header's ownership rules and pass each returned error to check.
+pub const c = @import("core/bindings/c.zig").raw;
+pub const TritonErr = @import("core/bindings/error.zig").TritonErr;
+pub const check = @import("core/bindings/error.zig").check;
+pub const DataType = @import("core/bindings/datatype.zig").DataType;
+pub const MemoryType = @import("core/bindings/datatype.zig").MemoryType;
+pub const Server = @import("core/server.zig").Server;
+pub const ServerOptions = @import("core/server.zig").ServerOptions;
+pub const apiVersion = @import("core/server.zig").apiVersion;
+pub const ApiVersion = @import("core/server.zig").ApiVersion;
+pub const Repository = @import("core/model/repository.zig").Repository;
+pub const RepositoryModel = @import("core/model/repository.zig").RepositoryModel;
+pub const ModelList = @import("core/model/metadata.zig").ModelList;
+pub const ModelInfo = @import("core/model/metadata.zig").ModelInfo;
+pub const ModelMetadata = @import("core/model/metadata.zig").ModelMetadata;
+pub const TensorInfo = @import("core/model/metadata.zig").TensorInfo;
+pub const Request = @import("core/inference/request.zig").Request;
+pub const PendingInference = @import("core/inference/operation.zig").PendingInference;
+pub const InferenceResponse = @import("core/inference/response.zig").InferenceResponse;
+pub const OutputTensor = @import("core/inference/tensor.zig").OutputTensor;
+
+test {
+    _ = @import("tests/integration/bindings_test.zig");
+    _ = @import("tests/unit/model_test.zig");
+    _ = @import("tests/unit/repository_test.zig");
+    _ = @import("tests/integration/server_test.zig");
+    _ = @import("tests/integration/inference_test.zig");
+    _ = @import("tests/unit/tensor_test.zig");
+    _ = @import("core/inference/operation.zig");
+}

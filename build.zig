@@ -81,7 +81,7 @@ pub fn build(b: *std.Build) void {
         b.step(name, if (std.mem.eql(u8, name, "scheduler-demo")) "Verify Zig request merging and output splitting" else "Compare single-request and dynamically batched inference").dependOn(&command.step);
     }
 
-    // Optional hardware experiment, outside the default build and CPU-only CI.
+    // Optional hardware experiment, outside the default build and CI.
     const gpu_verify = b.addExecutable(.{
         .name = "gpu-verify",
         .root_module = b.createModule(.{

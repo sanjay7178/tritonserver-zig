@@ -4,14 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
   merge_group:
   workflow_dispatch:
-    inputs:
-      run_gpu:
-        description: Run checks on the self-hosted GPU runner (must be online)
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -25,8 +19,6 @@ jobs:
     name: Linux CPU
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    outputs:
-      gpu_requested: ${{ steps.gpu-request.outputs.requested }}
     defaults:
       run:
         shell: bash
@@ -42,16 +34,6 @@ jobs:
       RE2_COMMIT: 5723bb8950318135ed9cf4fc76bed988a087f536 # 2022-06-01
 
     steps:
-      - name: Select optional GPU checks
-        id: gpu-request
-        env:
-          REQUESTED: >-
-            ${{ (github.event_name == 'workflow_dispatch' && inputs.run_gpu) ||
-                (github.event_name == 'pull_request' &&
-                 github.event.pull_request.head.repo.full_name == github.repository &&
-                 contains(github.event.pull_request.labels.*.name, 'gpu')) }}
-        run: echo "requested=$REQUESTED" >> "$GITHUB_OUTPUT"
-
       - name: Check out source and Triton core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,8 +72,8 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: core/build/install
-          # Bump NATIVE_CACHE_VERSION when changing native build flags. GPU-only
-          # workflow changes can reuse the same pinned CPU installation.
+          # Bump NATIVE_CACHE_VERSION when changing native build flags. Other
+          # workflow updates can reuse the same pinned CPU installation.
           key: triton-cpu-ubuntu24-${{ runner.arch }}-${{ env.NATIVE_CACHE_VERSION }}-${{ env.CMAKE_VERSION }}-${{ env.COMMON_COMMIT }}-${{ env.BACKEND_COMMIT }}-${{ env.PROTOBUF_COMMIT }}-${{ env.RE2_COMMIT }}-${{ hashFiles('core/CMakeLists.txt', 'core/src/**', 'core/include/**') }}
 
       - name: Fetch pinned native sources
@@ -209,111 +191,3 @@ jobs:
         run: |
           zig build scheduler-bench -Doptimize=ReleaseFast -- \
             --duration-seconds 1 --warmup-seconds 0 --concurrency 16
-
-      - name: Package native runtime for GPU checks
-        if: steps.gpu-request.outputs.requested == 'true'
-        run: tar -czf "$RUNNER_TEMP/triton-cpu-install.tar.gz" -C core/build install
-
-      - name: Share native runtime with GPU runner
-        if: steps.gpu-request.outputs.requested == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: triton-cpu-install
-          path: ${{ runner.temp }}/triton-cpu-install.tar.gz
-          compression-level: 0
-          retention-days: 7
-
-  gpu:
-    name: NVIDIA GPU
-    needs: cpu
-    if: needs.cpu.outputs.gpu_requested == 'true'
-    runs-on: [self-hosted, Linux, X64, gpu]
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
-    env:
-      CUDA_IMAGE: nvidia/cuda:12.6.3-devel-ubuntu24.04@sha256:392c0df7b577ecae17a17f6ba7f2009c217bb4422f8431c053ae9af61a8c148a
-      ZIG_LOCAL_PKG_DIR: ${{ github.workspace }}/zig-pkg
-      GPU_EXPERIMENT_HIDDEN: "4096"
-      GPU_EXPERIMENT_LAYERS: "16"
-
-    steps:
-      - name: Check out source and Triton core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: true
-          persist-credentials: false
-
-      - name: Install Zig
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.17.0-dev.1936+5a625d5f3
-          mirror: https://zig.squirl.dev
-
-      - name: Download native runtime
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: triton-cpu-install
-          path: ${{ runner.temp }}
-
-      - name: Restore native runtime
-        run: |
-          mkdir -p core/build
-          tar -xzf "$RUNNER_TEMP/triton-cpu-install.tar.gz" -C core/build
-
-      - name: Run checks inside the CUDA container
-        run: |
-          mkdir -p gpu-results
-          docker info --format 'Docker data root: {{.DockerRootDir}}'
-          data_root="$(docker info --format '{{.DockerRootDir}}')"
-          findmnt -T "$data_root"
-          ls -ld "$data_root" "$data_root/network" "$data_root/network/files" || true
-          zig_home="$(dirname "$(readlink -f "$(command -v zig)")")"
-          # No bridge network is needed. Keep host packages and Docker settings
-          # untouched while matching the Ubuntu 24.04 native artifact's glibc.
-          docker run --rm --gpus all --network host \
-            --volume "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" \
-            --volume "$zig_home:/opt/zig:ro" \
-            --workdir "$GITHUB_WORKSPACE" \
-            --env GPU_EXPERIMENT_HIDDEN --env GPU_EXPERIMENT_LAYERS \
-            --env ZIG_LOCAL_PKG_DIR="$GITHUB_WORKSPACE/zig-pkg" \
-            --env ZIG_GLOBAL_CACHE_DIR="$GITHUB_WORKSPACE/.zig-cache" \
-            --env PATH=/opt/zig:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-            --env CPATH=/usr/local/cuda/include \
-            --env LIBRARY_PATH=/usr/local/cuda/lib64 \
-            --env LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:/usr/local/nvidia/lib \
-            --entrypoint bash "$CUDA_IMAGE" -euo pipefail -s <<'GPU_CHECKS'
-          # Root only inside the disposable container. Restore mounted workspace
-          # ownership so the self-hosted runner can clean it on its next job.
-          owner="$(stat -c '%u:%g' "$PWD")"
-          trap 'chown -Rh "$owner" "$PWD"' EXIT
-          apt-get update
-          apt-get install --yes --no-install-recommends \
-            build-essential ca-certificates curl git xz-utils libnuma1 rapidjson-dev
-          git config --global --add safe.directory "$PWD"
-          nvidia-smi | tee gpu-results/device.txt
-          sh tools/experiments/gpu_batch/setup.sh
-          cp .zig-cache/gpu-experiment/cublas-workload.json gpu-results/workload.json
-          zig build test -Doptimize=ReleaseSafe --summary all
-          zig build gpu-verify -Doptimize=ReleaseSafe 2>&1 | tee gpu-results/correctness.log
-          zig build scheduler-bench -Doptimize=ReleaseFast -- \
-            --model-repository .zig-cache/gpu-experiment/cublas-models \
-            --backend-directory .zig-cache/gpu-experiment/backends \
-            --model gpu_dense_mean \
-            --workload .zig-cache/gpu-experiment/cublas-workload.json \
-            --workers 1 --concurrency 32 --max-batch-size 8 \
-            --warmup-seconds 2 --duration-seconds 5 --gpu-index 0 \
-            > gpu-results/benchmark.json
-          # Correctness gates CI. Speed and utilization are observations.
-          cat gpu-results/benchmark.json
-          GPU_CHECKS
-
-      - name: Upload GPU results
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: gpu-results
-          path: gpu-results/
-          if-no-files-found: ignore
-          retention-days: 14

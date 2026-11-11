@@ -285,35 +285,6 @@ also differs, so the rows are not a controlled batch-size-only comparison.
 These results describe these synthetic models, not trained-model accuracy or
 a production performance guarantee.
 
-### Optional GPU CI
-
-The single CI workflow keeps CPU checks mandatory and GPU checks opt-in. For a
-PR whose source branch is in this repository, add the `gpu` label to request
-the GPU job. Removing the label returns subsequent runs to CPU-only checks.
-Fork PRs cannot select the self-hosted runner through a label. After the workflow
-exists on `main`, the **Run workflow** form also offers a `run_gpu` checkbox.
-
-Only request GPU checks when a matching `self-hosted`, `Linux`, `X64`, `gpu`
-runner is online. GitHub otherwise queues a requested job; the execution timeout
-does not limit time spent waiting for an offline runner. No runner-status token
-or other repository secret is required by this opt-in design.
-
-The runner host needs Docker and NVIDIA Container Toolkit configured for
-`docker run --gpus all`, plus a compatible NVIDIA driver. CI does not install
-host drivers or modify Docker configuration. A pinned CUDA 12.6.3 Ubuntu 24.04
-container supplies the GPU development environment and matches the CPU-built
-Triton artifact's userspace. It is launched explicitly with host networking,
-avoiding GitHub's temporary Docker bridge network; no host Docker configuration
-is changed. Docker's data root must still be healthy. The CPU job shares its native installation through
-a tar archive, preserving permissions and avoiding another native build.
-
-GPU CI reruns ReleaseSafe tests, checks distinct CUDA outputs and mixed batch
-partitioning, then records a short cuBLAS comparison. Correctness and command
-failures fail the job. Throughput/utilization thresholds are informational.
-The `gpu-results` artifact contains device information, workload parameters,
-the numerical verification log and benchmark JSON; the native artifact is
-retained for seven days and GPU reports for fourteen days.
-
 Desktop graphics shared the device: the pre-test baseline averaged 23.3% busy,
 and process monitoring also recorded compositor activity during inference.
 Baseline always ran first; ordering, temperature and clocks were not controlled.
@@ -328,7 +299,8 @@ remain ignored under `.zig-cache/gpu-experiment`. A small sanitized
 correctness logs and the eight CUDA kernel records; its
 [summary](results/phase4-gpu/summary.json) records the combined qualifications.
 The excluded initial installed-build timing is not part of the table.
-GPU experiments are optional and do not run in CPU CI.
+GPU experiments run on the local development host. GitHub CI is CPU-only; it
+does not request a self-hosted runner or execute CUDA workloads.
 
 For the cuBLAS workload, with CUDA development libraries already installed:
 

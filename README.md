@@ -111,15 +111,8 @@ the Phase 4 CPU path. The pinned Zig toolchain and installed native dependencies
 are cached. Dependency versions and upstream sources are part of the cache key;
 the native recipe version is bumped when its build flags change.
 
-GPU checks are opt-in. Add the `gpu` label to a PR from this repository, or
-select `run_gpu` when manually running CI after the workflow is merged into
-`main`. Request them when a runner with `self-hosted`, `Linux`, `X64` and `gpu`
-labels is online. The GPU job runs CUDA correctness checks and a comparison
-benchmark, uploading the device information, numerical log and JSON results.
-Its host needs Docker access, NVIDIA Container Toolkit and a compatible driver;
-all other GPU build dependencies live in a pinned CUDA container using host
-networking. Ordinary PRs
-use GitHub-hosted CPU runners. GPU speed/utilization numbers do not gate CI.
+CI runs only on GitHub-hosted CPU runners. GPU verification and benchmarks
+are run locally with the optional tools documented below.
 
 ## Server and repository API
 

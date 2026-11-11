@@ -25,6 +25,15 @@ const Context = struct {
     multiple_responses: bool = false,
 
     fn wait(self: *Context) void {
+        // Upstream: core@eaff04d5d77eb1c32e98c573c90fb78b363c88c0
+        // include/triton/core/tritonserver.h::
+        // TRITONSERVER_InferenceResponseCompleteFn_t + RESPONSE_COMPLETE_FINAL
+        // TRITONSERVER_InferenceRequestReleaseFn_t + REQUEST_RELEASE_ALL
+        // This Zig adapter drains both contracts in either order, even for a
+        // null FINAL. Callbacks use libc allocation, never the caller allocator.
+        // Preserve this drain before freeing Context in any std.Io/async refactor:
+        // Zig task cancellation does not cancel C-owned callbacks.
+        // Test: "completion context handles FINAL and RELEASE_ALL in either order".
         pthreadCheck(std.c.pthread_mutex_lock(&self.mutex));
         while (!self.final or !self.released)
             pthreadCheck(std.c.pthread_cond_wait(&self.condition, &self.mutex));

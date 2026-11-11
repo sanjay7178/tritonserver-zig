@@ -1,4 +1,4 @@
-const c = @import("translated");
+const c = @import("c.zig").raw;
 
 pub const TritonErr = error{
     Unknown,
@@ -11,6 +11,9 @@ pub const TritonErr = error{
     Cancelled,
 };
 
+/// Consume an owned Triton error, mapping null to success. A non-null error is
+/// always deleted, including unrecognized codes. Read/copy any C error message
+/// before calling this function; its storage is invalid after this call.
 pub fn check(err: ?*c.TRITONSERVER_Error) TritonErr!void {
     const triton_err = err orelse return;
     defer c.TRITONSERVER_ErrorDelete(triton_err);

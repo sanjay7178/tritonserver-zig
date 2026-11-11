@@ -6,15 +6,18 @@ pub fn build(b: *std.Build) void {
     const custom_prefix = b.option([]const u8, "triton-prefix", "Triton installation with matching headers, libraries and backend utilities");
     const triton_prefix = custom_prefix orelse "core/build/install";
     const prefix_path = if (std.fs.path.isAbsolute(triton_prefix)) triton_prefix else b.root.joinString(b.allocator, triton_prefix) catch @panic("OOM");
+    const backend_cuda = b.option(bool, "backend-cuda", "Build and test the optional CUDA pass-through backend") orelse false;
+    const cuda_prefix = b.option([]const u8, "cuda-prefix", "CUDA toolkit prefix (include/ and lib/ or lib64/)") orelse "/usr";
 
     // This Zig toolchain uses translate-c in place of @cImport. Translate the
     // upstream header so the entire C API stays available through t.c.
     const Translator = @import("translate_c").Translator;
     const translated: Translator = .init(b.dependency("translate_c", .{}), .{
-        .c_source_file = if (custom_prefix != null) .{ .cwd_relative = b.pathJoin(&.{ prefix_path, "include/triton/core/tritonserver.h" }) } else b.path("core/include/triton/core/tritonserver.h"),
+        .c_source_file = b.path("src/core/bindings/triton.h"),
         .target = target,
         .optimize = optimize,
     });
+    translated.addIncludePath(if (custom_prefix != null) .{ .cwd_relative = b.pathJoin(&.{ prefix_path, "include" }) } else b.path("core/include"));
 
     const mod = b.addModule("tritonserver_zig", .{
         .root_source_file = b.path("src/root.zig"),
@@ -27,6 +30,60 @@ pub fn build(b: *std.Build) void {
     mod.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ prefix_path, "lib" }) });
     mod.addRPath(.{ .cwd_relative = b.pathJoin(&.{ prefix_path, "lib" }) });
     mod.linkSystemLibrary("tritonserver", .{});
+
+    const cpu_copy = b.createModule(.{
+        .root_source_file = b.path("src/backend/cpu_copy.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "tritonserver_zig", .module = mod }},
+    });
+    const plugin = addBackend(b, mod, cpu_copy, target, optimize, "zig_passthrough");
+    const execute_only = b.addLibrary(.{
+        .name = "phase5_execute_only",
+        .linkage = .dynamic,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/fixtures/backends/phase5_execute_only.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "tritonserver_zig", .module = mod }},
+        }),
+    });
+    const loader_fixture = b.addUpdateSourceFiles();
+    loader_fixture.addCopyFileToSource(execute_only.getEmittedBin(), ".zig-cache/phase5/execute_only.so");
+    const backend_step = b.step("backend", "Build and install the Zig-native CPU pass-through backend");
+    backend_step.dependOn(plugin);
+
+    if (backend_cuda) {
+        const cuda: Translator = .init(b.dependency("translate_c", .{}), .{
+            .name = "cuda",
+            .c_source_file = .{ .cwd_relative = b.pathJoin(&.{ cuda_prefix, "include/cuda_runtime_api.h" }) },
+            .target = target,
+            .optimize = optimize,
+        });
+        cuda.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ cuda_prefix, "include" }) });
+        const cuda_copy = b.addModule("triton_backend_cuda", .{
+            .root_source_file = b.path("src/backend/cuda.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{ .{ .name = "tritonserver_zig", .module = mod }, .{ .name = "cuda_c", .module = cuda.mod } },
+        });
+        cuda_copy.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ cuda_prefix, "lib64" }) });
+        cuda_copy.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ cuda_prefix, "lib" }) });
+        cuda_copy.addRPath(.{ .cwd_relative = b.pathJoin(&.{ cuda_prefix, "lib64" }) });
+        cuda_copy.addRPath(.{ .cwd_relative = b.pathJoin(&.{ cuda_prefix, "lib" }) });
+        cuda_copy.linkSystemLibrary("cudart", .{});
+        const cuda_plugin = addBackend(b, mod, cuda_copy, target, optimize, "zig_passthrough_cuda");
+        const cuda_tests = b.addTest(.{ .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests/integration/backend_cuda_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{ .{ .name = "tritonserver_zig", .module = mod }, .{ .name = "backend_cuda", .module = cuda_copy }, .{ .name = "cuda_c", .module = cuda.mod } },
+        }) });
+        const run_cuda = b.addRunArtifact(cuda_tests);
+        run_cuda.step.dependOn(cuda_plugin);
+        b.step("backend-cuda-test", "Verify real CPU/pinned/device tensor buffers on the local GPU").dependOn(&run_cuda.step);
+    }
 
     const exe = b.addExecutable(.{
         .name = "tritonserver_zig",
@@ -60,6 +117,19 @@ pub fn build(b: *std.Build) void {
     infer_cmd.step.dependOn(&demo_backend.step);
     infer_cmd.addArgs(&.{ "--once", "--infer-demo", "--model-repository", "tests/fixtures/models", "--backend-directory", ".zig-cache/phase2/backends" });
     b.step("infer-demo", "Run real inference and verify typed CPU outputs").dependOn(&infer_cmd.step);
+
+    const backend_demo = b.addExecutable(.{
+        .name = "backend-demo",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/server/backend_demo.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "tritonserver_zig", .module = mod }},
+        }),
+    });
+    const run_backend = b.addRunArtifact(backend_demo);
+    run_backend.step.dependOn(plugin);
+    b.step("backend-demo", "Load the Zig backend in Triton and verify pass-through inference").dependOn(&run_backend.step);
 
     const scheduler_backend = b.addSystemCommand(&.{ "sh", "tools/build/build_scheduler_backend.sh" });
     scheduler_backend.setEnvironmentVariable("TRITON_INSTALL_DIR", prefix_path);
@@ -100,6 +170,8 @@ pub fn build(b: *std.Build) void {
     const run_mod_tests = b.addRunArtifact(mod_tests);
     run_mod_tests.step.dependOn(&demo_backend.step);
     run_mod_tests.step.dependOn(&scheduler_backend.step);
+    run_mod_tests.step.dependOn(plugin);
+    run_mod_tests.step.dependOn(&loader_fixture.step);
     test_step.dependOn(&run_mod_tests.step);
     const exe_tests = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/server/command_line.zig"),
@@ -107,4 +179,30 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
+}
+
+fn addBackend(b: *std.Build, bindings: *std.Build.Module, copy_engine: *std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8) *std.Build.Step {
+    const lib = b.addLibrary(.{
+        .name = b.fmt("triton_{s}", .{name}),
+        .linkage = .dynamic,
+        .use_llvm = true,
+        .use_lld = true,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/backend/examples/zig_passthrough.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .pic = true,
+            .imports = &.{ .{ .name = "tritonserver_zig", .module = bindings }, .{ .name = "copy_engine", .module = copy_engine } },
+        }),
+    });
+    lib.setVersionScript(b.path("src/backend/exports.map"));
+    lib.linker_allow_shlib_undefined = false;
+    const install = b.addInstallFile(lib.getEmittedBin(), b.fmt("backends/{s}/libtriton_{s}.so", .{ name, name }));
+    b.getInstallStep().dependOn(&install.step);
+    // Match the existing integration fixtures without relying on compiler cache hashes.
+    const fixtures = b.addUpdateSourceFiles();
+    fixtures.addCopyFileToSource(lib.getEmittedBin(), b.fmt(".zig-cache/phase5/backends/{s}/libtriton_{s}.so", .{ name, name }));
+    fixtures.step.dependOn(&install.step);
+    return &fixtures.step;
 }

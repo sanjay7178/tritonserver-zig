@@ -1,0 +1,7 @@
+name: "zig_invalid_sequence"
+backend: "zig_passthrough"
+max_batch_size: 8
+input [{ name: "IN0" data_type: TYPE_INT32 dims: [4] }]
+output [{ name: "OUT0" data_type: TYPE_INT32 dims: [4] }]
+sequence_batching {}
+instance_group [{ kind: KIND_CPU count: 1 }]

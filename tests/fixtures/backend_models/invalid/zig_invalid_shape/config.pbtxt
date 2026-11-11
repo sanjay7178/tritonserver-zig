@@ -1,0 +1,6 @@
+name: "zig_invalid_shape"
+backend: "zig_passthrough"
+max_batch_size: 0
+input [{ name: "IN0" data_type: TYPE_INT32 dims: [4] is_shape_tensor: true }]
+output [{ name: "OUT0" data_type: TYPE_INT32 dims: [4] }]
+instance_group [{ kind: KIND_CPU count: 1 }]

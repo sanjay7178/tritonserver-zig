@@ -1,0 +1,8 @@
+name: "phase5_cuda"
+backend: "zig_passthrough_cuda"
+max_batch_size: 8
+input [{ name: "IN0" data_type: TYPE_INT32 dims: [4] }]
+output [{ name: "OUT0" data_type: TYPE_INT32 dims: [4] }]
+# The backend owns CUDA copies. This also exercises raw device pointers through
+# the existing CPU-only Triton core without requesting native GPU instances.
+instance_group [{ kind: KIND_CPU count: 1 }]

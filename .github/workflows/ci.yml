@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cpu:
+    name: Linux CPU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 2
+      TRITON_INSTALL: ${{ github.workspace }}/core/build/install
+      ZIG_LOCAL_PKG_DIR: ${{ github.workspace }}/zig-pkg
+      COMMON_COMMIT: fd2237e516a7e863af65e327f5e4fbb2cba70f09
+      BACKEND_COMMIT: efad1152ed836d336bb04cc4095ffe026e780bb7
+      PROTOBUF_COMMIT: f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c # v21.12
+      RE2_COMMIT: 5723bb8950318135ed9cf4fc76bed988a087f536 # 2022-06-01
+
+    steps:
+      - name: Check out source and Triton core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.17.0-dev.1936+5a625d5f3
+          mirror: https://zig.squirl.dev
+
+      - name: Check formatting and shell syntax
+        run: |
+          zig fmt --check build.zig build.zig.zon src
+          sh -n tools/build/build_demo_backend.sh
+
+      - name: Install native build tools
+        run: |
+          echo "NATIVE_SOURCES=$RUNNER_TEMP/triton-sources" >> "$GITHUB_ENV"
+          echo "NATIVE_BUILD=$RUNNER_TEMP/triton-build" >> "$GITHUB_ENV"
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential ninja-build python3-venv libboost-dev \
+            rapidjson-dev libnuma-dev libgtest-dev libgmock-dev
+          python3 -m venv "$RUNNER_TEMP/cmake"
+          "$RUNNER_TEMP/cmake/bin/pip" install --disable-pip-version-check cmake==3.31.10
+          echo "$RUNNER_TEMP/cmake/bin" >> "$GITHUB_PATH"
+
+      - name: Restore CPU dependencies
+        id: native-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: core/build/install
+          # Workflow changes also invalidate pinned sources and build options.
+          key: triton-cpu-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/ci.yml', '.gitmodules', 'core/CMakeLists.txt', 'core/src/**', 'core/include/**') }}
+
+      - name: Fetch pinned native sources
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$NATIVE_SOURCES"/{common,backend,protobuf,re2}
+          curl --fail --location --retry 3 --silent --show-error \
+            "https://github.com/triton-inference-server/common/archive/$COMMON_COMMIT.tar.gz" \
+            | tar -xz --strip-components=1 -C "$NATIVE_SOURCES/common"
+          curl --fail --location --retry 3 --silent --show-error \
+            "https://github.com/triton-inference-server/backend/archive/$BACKEND_COMMIT.tar.gz" \
+            | tar -xz --strip-components=1 -C "$NATIVE_SOURCES/backend"
+          curl --fail --location --retry 3 --silent --show-error \
+            "https://github.com/protocolbuffers/protobuf/archive/$PROTOBUF_COMMIT.tar.gz" \
+            | tar -xz --strip-components=1 -C "$NATIVE_SOURCES/protobuf"
+          curl --fail --location --retry 3 --silent --show-error \
+            "https://github.com/google/re2/archive/$RE2_COMMIT.tar.gz" \
+            | tar -xz --strip-components=1 -C "$NATIVE_SOURCES/re2"
+
+      - name: Build Protobuf and RE2
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: |
+          # Static, position-independent libraries keep the CPU runtime self-contained.
+          cmake -S "$NATIVE_SOURCES/protobuf/cmake" -B "$NATIVE_BUILD/protobuf" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$TRITON_INSTALL" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -Dprotobuf_BUILD_TESTS=OFF \
+            -Dprotobuf_BUILD_SHARED_LIBS=OFF \
+            -Dprotobuf_WITH_ZLIB=OFF
+          cmake --build "$NATIVE_BUILD/protobuf"
+          cmake --install "$NATIVE_BUILD/protobuf"
+
+          cmake -S "$NATIVE_SOURCES/re2" -B "$NATIVE_BUILD/re2" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$TRITON_INSTALL" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DRE2_BUILD_TESTING=OFF
+          cmake --build "$NATIVE_BUILD/re2"
+          cmake --install "$NATIVE_BUILD/re2"
+
+      - name: Build the Triton CPU runtime
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S core/src -B "$NATIVE_BUILD/core" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$TRITON_INSTALL" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_PREFIX_PATH="$TRITON_INSTALL" \
+            -DTRITON_REPO_ORGANIZATION=https://github.com/triton-inference-server \
+            -DTRITON_COMMON_REPO_TAG="$COMMON_COMMIT" \
+            -DFETCHCONTENT_SOURCE_DIR_REPO-COMMON="$NATIVE_SOURCES/common" \
+            -DTRITON_COMMON_ENABLE_PROTOBUF_PYTHON=OFF \
+            -DTRITON_VERSION=0.0.0 \
+            -DTRITON_ENABLE_LOGGING=ON \
+            -DTRITON_ENABLE_GPU=OFF \
+            -DTRITON_ENABLE_MALI_GPU=OFF \
+            -DTRITON_ENABLE_METRICS=OFF \
+            -DTRITON_ENABLE_METRICS_GPU=OFF \
+            -DTRITON_ENABLE_METRICS_CPU=OFF \
+            -DTRITON_ENABLE_STATS=OFF \
+            -DTRITON_ENABLE_TRACING=OFF \
+            -DTRITON_ENABLE_NVTX=OFF \
+            -DTRITON_ENABLE_ENSEMBLE=OFF \
+            -DTRITON_ENABLE_GCS=OFF \
+            -DTRITON_ENABLE_S3=OFF \
+            -DTRITON_ENABLE_AZURE_STORAGE=OFF
+          cmake --build "$NATIVE_BUILD/core" --target triton-core
+          # The full upstream install also expects unrelated C++ test executables.
+          install -Dm755 "$NATIVE_BUILD/core/libtritonserver.so" \
+            "$TRITON_INSTALL/lib/libtritonserver.so"
+
+      - name: Build backend utilities and install headers
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S "$NATIVE_SOURCES/backend" -B "$NATIVE_BUILD/backend" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$TRITON_INSTALL" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_PREFIX_PATH="$TRITON_INSTALL" \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DTRITON_CORE_HEADERS_ONLY=ON \
+            -DTRITON_CORE_REPO_TAG="$(git -C core rev-parse HEAD)" \
+            -DTRITON_COMMON_REPO_TAG="$COMMON_COMMIT" \
+            -DFETCHCONTENT_SOURCE_DIR_REPO-CORE="$GITHUB_WORKSPACE/core" \
+            -DFETCHCONTENT_SOURCE_DIR_REPO-COMMON="$NATIVE_SOURCES/common" \
+            -DTRITON_COMMON_ENABLE_PROTOBUF=OFF \
+            -DTRITON_COMMON_ENABLE_PROTOBUF_PYTHON=OFF \
+            -DTRITON_ENABLE_GPU=OFF \
+            -DTRITON_ENABLE_STATS=OFF
+          cmake --build "$NATIVE_BUILD/backend"
+          cmake --install "$NATIVE_BUILD/backend"
+
+      - name: Build and test Debug
+        run: |
+          zig build -Doptimize=Debug
+          zig build test -Doptimize=Debug --summary all
+
+      - name: Build and test ReleaseSafe
+        run: |
+          zig build -Doptimize=ReleaseSafe
+          zig build test -Doptimize=ReleaseSafe --summary all
+
+      - name: Check server startup, models and inference
+        run: |
+          zig build smoke
+          zig build demo
+          zig build infer-demo

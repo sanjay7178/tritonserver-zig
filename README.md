@@ -90,11 +90,19 @@ ignored `.zig-cache/phase2/backends/minimal`. Both `just test` and `just demo`
 build this backend; `just build` and `just smoke` do not require it.
 
 `just linker` builds Triton core; it does not install the separate upstream
-backend utility headers/libraries used by this demo. A fresh checkout needs
-those development dependencies provisioned first. Validation here used the
-existing local CPU installation, including its pre-existing protobuf
-compatibility changes; those upstream checkout edits are separate from this
-project's Zig implementation.
+backend utility headers/libraries used by this demo. For a clean Ubuntu 24.04
+setup, [the CI workflow](.github/workflows/ci.yml) includes the full CPU build:
+pinned Protobuf, RE2, Triton common and backend sources, plus the checked-out
+core revision. Its native build does not require the local protobuf
+compatibility changes.
+
+## Continuous integration
+
+[CI](.github/workflows/ci.yml) runs on pull requests, pushes to `main`, merge
+queues and manual dispatch. One Linux job checks formatting and shell syntax,
+builds and tests Debug and ReleaseSafe, then checks startup, model loading and
+real CPU inference. The pinned Zig toolchain and installed native dependencies
+are cached; native build options or source changes invalidate the native cache.
 
 ## Server and repository API
 

@@ -46,6 +46,18 @@ jobs:
           version: 0.17.0-dev.1936+5a625d5f3
           mirror: https://zig.squirl.dev
 
+      - name: Prime the pinned Zig packages if Codeberg DNS is unavailable
+        run: |
+          if ! getent ahosts codeberg.org >/dev/null; then
+            # Fetch the same commits and verify their Zig package digests.
+            test "$(zig fetch \
+              git+https://github.com/ziglang/translate-c#0944784e197e419433a21d4b28bfc65e48e7d514)" \
+              = translate_c-0.0.0-Q_BUWo5NBwBs3K0a-B1XbxEF3gFdTb75VgOE0FL-2qKL
+            test "$(zig fetch \
+              git+https://github.com/Vexu/arocc#8d5f79925cfd60d1c894b478b3502ed1e376e9ba)" \
+              = aro-0.0.0-JSD1QhdtNwC3tSPo_L0O9EOdOqEXYxE5tOrih2p4RGKx
+          fi
+
       - name: Check formatting and shell syntax
         run: |
           zig fmt --check build.zig build.zig.zon src \

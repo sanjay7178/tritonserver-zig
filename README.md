@@ -69,7 +69,8 @@ to start and prints model failure reasons; an unready server still exits with
 an error after cleanup. A custom repository is never created automatically.
 
 This is an embedded C API server with an optional software scheduler.
-HTTP/gRPC listeners are outside the current milestone.
+An optional [native gRPC frontend](docs/grpc.md) serves Triton clients from
+the same Zig process.
 
 ## Zig-native backend
 

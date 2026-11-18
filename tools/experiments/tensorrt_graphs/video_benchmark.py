@@ -467,7 +467,6 @@ def main():
                         log,
                         models=MODELS,
                         cwd=artifacts,
-                        enable_metrics=True,
                     ),
                     log,
                     clips[:PROOF_BATCHES],
@@ -487,7 +486,6 @@ def main():
                         env,
                         log,
                         models=MODELS,
-                        enable_metrics=True,
                     ) as client:
                         measurement = with_samples(
                             gpu["uuid"],

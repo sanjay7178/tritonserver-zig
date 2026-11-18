@@ -55,13 +55,16 @@ and build the gRPC executable with its GPU prefix. Extract the stock
 shared plan and fixtures, then run both servers through NVIDIA's Python client.
 
 ```sh
-unzip -j /path/to/tritonserver.zip tritonserver/bin/tritonserver -d .deps/stock
+tools/build/build_grpc_frontend.sh "$TRT_PREFIX" gpu
+zig build -Dgrpc=true -Dtriton-prefix="$TRT_PREFIX" -Doptimize=ReleaseSafe
+unzip -j "${TRITON_DOWNLOAD_CACHE:-.deps/tensorrt-graphs/downloads}/tritonserver.zip" \
+    tritonserver/bin/tritonserver -d .deps/stock
 uv pip install --python "$TRT_PYTHON" 'tritonclient[grpc]==2.69.0'
 "$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/benchmark.py \
     --prepare-only --triton-prefix "$TRT_PREFIX" --output-dir .deps/tensorrt-artifacts
 "$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/grpc_benchmark.py \
     --zig-server zig-out/bin/tritonserver_zig \
-    --stock-server .deps/stock/tritonserver --triton-prefix "$TRITON_PREFIX" \
+    --stock-server .deps/stock/tritonserver --triton-prefix "$TRT_PREFIX" \
     --artifacts .deps/tensorrt-artifacts --output-dir .deps/grpc-results
 ```
 
@@ -73,15 +76,15 @@ verifies output against the same NumPy reference, and
 counts backend `cudaGraphLaunch` calls in separate proof runs. The latency
 includes Python tensor marshalling, the loopback RPC and response decoding.
 See the [RTX 4050 gRPC measurements](results/tensorrt-graphs/README.md#loopback-grpc)
-for the recorded comparison with the optional embedded control.
+for the recorded comparison.
 
 The generated plans and references can also be passed to the
 [manual Zig TensorRT tests](../tests/fixtures/tensorrt/README.md).
 
 ### Benchmark a YOLO video pipeline
 
-With the same GPU environment loaded, install FFmpeg and FFprobe and add the
-video dependencies to the benchmark's Python environment.
+Use the same GPU build and stock server shown above. Install FFmpeg with
+FFprobe and add the video dependencies to the benchmark's Python environment.
 
 ```sh
 uv pip install --python "$TRT_PYTHON" 'tritonclient[grpc]==2.69.0' \
@@ -103,9 +106,9 @@ predicts box offsets from up to four resized crops per frame.
 Timed runs start with decoded RGB frames and include preprocessing, both
 RPCs, class-aware NMS, and box refinement. The report gives frame throughput
 and batch latency separately from per-model RPC timings. Paired trials switch
-server order, verify detections and regression outputs, and check native
-Triton execution counts. Separate proof runs count CUDA Graph launches for
-both models.
+server order and verify matching detection counts and native Triton execution
+counts. Separate proof runs compare detector tensors, regression outputs, and
+refined boxes and count CUDA Graph launches across the two models.
 [RTX 4050 video measurements](results/tensorrt-graphs/README.md#yolov8n-video-over-grpc)
 
 ## Upgrade

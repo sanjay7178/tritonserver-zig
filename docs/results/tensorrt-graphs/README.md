@@ -77,21 +77,46 @@ The SQLite export contains the graphs-on GPU records in
 ## Loopback gRPC
 
 The Zig executable and stock NVIDIA Triton 2.69.0 served the same model
-repositories, plan, backend and tensor fixtures on the same RTX 4050. The Zig
+repositories, plan, backend, and tensor fixtures on the same RTX 4050. The Zig
 bridge used NVIDIA's r26.05 gRPC frontend with gRPC 1.54.3 and Protobuf 3.21.12.
-Both gRPC paths used the same Python Triton client 2.69.0 and one request in
-flight. Each case had 1,000 warmup and 20,000 timed requests.
+Both gRPC paths used the Python Triton client 2.69.0, native metrics collection,
+and one request in flight. Each case used 1,000 warmup and 20,000 timed requests.
 
-| Batch | Graphs | Embedded Zig samples/s | Zig gRPC samples/s | Stock gRPC samples/s | Zig gRPC p99, µs | Stock gRPC p99, µs |
-| ---: | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | Off | 9,365 | 1,713 | 1,852 | 1,228 | 1,104 |
-| 1 | On | 10,920 | 2,045 | 1,991 | 1,014 | 1,089 |
-| 8 | Off | 66,141 | 13,620 | 13,351 | 1,398 | 1,237 |
-| 8 | On | 73,261 | 13,723 | 14,683 | 1,343 | 1,018 |
+| Batch | Graphs | Zig samples/s | Stock samples/s | Zig p99, µs | Stock p99, µs |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | Off | 1,725 | 1,782 | 1,254 | 1,105 |
+| 1 | On | 1,823 | 1,881 | 1,048 | 1,029 |
+| 8 | Off | 12,266 | 12,648 | 1,836 | 1,158 |
+| 8 | On | 13,811 | 14,032 | 1,089 | 1,051 |
 
 Each server recorded 12 successful backend graph launches for 12 separate
 proof requests per graphs-on case and zero launches with graphs off. Maximum
-absolute error against the reference was below 1.2 × 10⁻⁶. The gRPC timings
-include Python marshalling, loopback transport, and response decoding. The
-embedded columns are from the earlier in-process run with the same plan.
+absolute error against the reference was below 1.2 × 10⁻⁶. Timed runs include
+Python marshalling, loopback transport, and response decoding.
 [Full gRPC report](grpc-rtx4050.json) · [Rerun commands](../../grpc.md#benchmark-tensorrt-over-loopback)
+
+## YOLOv8n video over gRPC
+
+Both servers ran the same FP32 TensorRT plans for pretrained YOLOv8n detection
+and deterministic crop regression on an RTX 4050. The client used 32 distinct
+RGB frames from the 1080p fixture. Each trial warmed up four frame batches and
+timed 32 frame batches, with three paired trials per case. Timing starts with
+decoded RGB frames and includes CPU preprocessing, both unary gRPC requests,
+NMS, and the final box refinement.
+
+The table reports median frames/s and the median of the three trial p99 batch
+latencies. An eight-frame batch contributes eight completed frames to throughput.
+
+| Frame batch | Graphs | Zig frames/s | Zig p99, ms | Stock frames/s | Stock p99, ms |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | Off | 22.9 | 55.6 | 24.2 | 50.0 |
+| 1 | On | 24.3 | 49.7 | 23.2 | 55.3 |
+| 8 | Off | 22.6 | 407.7 | 22.6 | 413.1 |
+| 8 | On | 22.6 | 393.7 | 23.1 | 409.8 |
+
+The two-batch proof on each server returned identical detector tensors,
+regression offsets, and refined boxes. The probe counted four successful
+backend graph launches for the four combined model calls with graphs on and
+zero launches with graphs off. Each timed trial recorded 32 executions per
+model, with matching detection counts across servers and graph modes.
+[Full YOLOv8n report](yolov8n-grpc-rtx4050.json) · [Rerun commands](../../grpc.md#benchmark-a-yolo-video-pipeline)

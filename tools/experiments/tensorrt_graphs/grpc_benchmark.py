@@ -41,13 +41,11 @@ def server_client(
     *,
     models=(MODEL,),
     cwd=None,
-    enable_metrics=False,
 ):
-    metrics_port = None
     with socket.socket() as reserved_port:
         reserved_port.bind(("127.0.0.1", 0))
         port = reserved_port.getsockname()[1]
-        if kind == "stock" and enable_metrics:
+        if kind == "stock":
             with socket.socket() as metrics_socket:
                 metrics_socket.bind(("127.0.0.1", 0))
                 metrics_port = metrics_socket.getsockname()[1]
@@ -65,7 +63,9 @@ def server_client(
         command += [
             "--allow-grpc=true",
             "--allow-http=false",
-            f"--allow-metrics={'true' if enable_metrics else 'false'}",
+            "--allow-metrics=true",
+            "--metrics-address=127.0.0.1",
+            f"--metrics-port={metrics_port}",
             "--allow-client-shm=false",
             "--grpc-address=127.0.0.1",
             f"--grpc-port={port}",
@@ -73,8 +73,6 @@ def server_client(
             "--repository-poll-secs=0",
             "--disable-auto-complete-config",
         ]
-        if metrics_port is not None:
-            command += ["--metrics-address=127.0.0.1", f"--metrics-port={metrics_port}"]
     with log_path.open("w") as log:
         process = subprocess.Popen(
             command, env=env, cwd=cwd, stdout=log, stderr=subprocess.STDOUT
@@ -286,6 +284,7 @@ def main():
         "plan_sha256": original["plan_sha256"],
         "triton_library_sha256": original["triton_library_sha256"],
         "triton_tensorrt_backend_sha256": original["triton_tensorrt_backend_sha256"],
+        "native_metrics": "enabled on both servers, stock exporter bound to loopback",
         "warmup_requests": args.warmup,
         "requests_in_flight": args.concurrency,
         "cases": [],

@@ -170,6 +170,30 @@ pub fn build(b: *std.Build) void {
     gpu_verify_cmd.addPassthruArgs();
     b.step("gpu-verify", "Check GPU experiment outputs and Zig batch partitioning").dependOn(&gpu_verify_cmd.step);
 
+    const tensorrt_test = b.step("tensorrt-test", "Run the manual Zig TensorRT tests on a Linux GPU");
+    const tensorrt_test_artifacts = b.option([]const u8, "tensorrt-test-artifacts", "TensorRT GPU test plans and FP32 references");
+    if (tensorrt_test_artifacts) |artifacts| {
+        const options = b.addOptions();
+        options.addOption([]const u8, "artifacts", artifacts);
+        options.addOption([]const u8, "backends", b.pathJoin(&.{ prefix_path, "backends" }));
+        const tests = b.addTest(.{
+            .name = "tensorrt-test",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/tests/integration/tensorrt_test.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{.{ .name = "tritonserver_zig", .module = mod }},
+            }),
+        });
+        tests.root_module.addOptions("tensorrt_test_options", options);
+        tests.root_module.linkSystemLibrary("dl", .{});
+        // The loaded TensorRT backend must resolve the test's replay probe.
+        tests.rdynamic = true;
+        tensorrt_test.dependOn(&b.addRunArtifact(tests).step);
+    } else {
+        tensorrt_test.dependOn(&b.addFail("pass -Dtensorrt-test-artifacts with the GPU model repositories and FP32 reference inputs").step);
+    }
+
     const tensorrt_bench = b.addExecutable(.{
         .name = "tensorrt-bench",
         .root_module = b.createModule(.{

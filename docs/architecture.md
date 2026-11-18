@@ -8,9 +8,9 @@ The architectural references are NVIDIA Triton's three repositories:
 | [backend](https://github.com/triton-inference-server/backend#readme) | Model execution plugins and backend-author examples/utilities | `src/backend` |
 | [server](https://github.com/triton-inference-server/server/tree/main/src) | Standalone executable, command-line options, signal handling and frontends | `src/server` |
 
-The same separation is kept within one Zig checkout. The backend example is
-upstream C++, copied with its license; the Phase 2 core wrappers and standalone
-process are Zig. No new Zig-native backend is introduced in this phase.
+The same separation is kept within one Zig checkout. The licensed upstream C++
+example remains a reference fixture. Phase 5 adds a separate Zig-native plugin
+and backend-author SDK; core wrappers and the standalone process remain Zig.
 
 ```text
 src/
@@ -25,6 +25,12 @@ src/
     scheduler/                     Atomic ingress, timed batching and bounded workers
     internal/owned_arena.zig        Heap-stable snapshot ownership
   backend/                         Model execution / backend-author boundary
+    root.zig                       Public t.backend namespace
+    sdk.zig                        Borrowed views, responses and C ABI exports
+    library.zig                    std.DynLib symbol inspection and typed vtable
+    tensor.zig                     Tagged input/output buffers and CPU copies
+    cpu_copy.zig / cuda.zig         Per-instance copy implementations
+    examples/zig_passthrough.zig    Zig-native pass-through plugin
     examples/minimal/              Licensed upstream C++ reference plugin
   server/                          Standalone process/CLI (Zig)
     main.zig                       Startup, repository selection and shutdown
@@ -84,8 +90,8 @@ Phase 3 request handling lives in `src/core/inference`: typed input copying,
 C asynchronous submission, response allocation, dual-callback completion and
 owned output decoding. The CLI demo consumes these library APIs; no model
 execution code is moved into the CLI. See [inference ownership](inference.md).
-Later network frontends belong in `src/server`, and Zig-native plugins/backend
-helpers belong in `src/backend` when the roadmap reaches that phase.
+Later network frontends belong in `src/server`. Zig-native plugins and their
+helpers live in `src/backend`; see [backend plugins](backend.md).
 
 Phase 4 scheduling is an opt-in layer in `src/core/scheduler`. A scheduler pins
 one model/version and validates its configuration. Producers copy tensor views
@@ -95,7 +101,7 @@ requests through the existing inference API and partitions outputs into owned
 responses. The scheduler never replaces Triton's backend execution machinery.
 Its managed models disable Triton's native dynamic batching so that the Zig
 layer controls aggregation and its delay. The C++ proof backend remains a test
-fixture; it is separate from the later Zig-native backend milestone.
+fixture; the Zig-native plugin has its own integration coverage.
 
 Shutdown closes admission, accounts for producers already submitting, flushes
 partial batches, and joins dispatcher/workers after accepted operations finish.

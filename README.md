@@ -7,6 +7,8 @@ with owned, typed tensor results. Phase 4 adds bounded software batching and
 worker scheduling, with CPU demonstrations and a comparison benchmark. Optional
 GPU experiments verify CUDA execution and numerical results on this machine;
 throughput and utilization remain workload-specific measurements.
+Phase 5 adds a Zig-native pass-through plugin, backend-author helpers and
+optional CUDA-resident tensor copies. See [backend plugins](docs/backend.md).
 
 ## Project layout
 
@@ -43,6 +45,7 @@ just smoke
 just demo
 just infer-demo
 just scheduler-demo
+just backend-demo
 just scheduler-bench --duration-seconds 1 --warmup-seconds 0
 just run
 ```
@@ -67,6 +70,19 @@ an error after cleanup. A custom repository is never created automatically.
 
 This is an embedded C API server with an optional software scheduler.
 HTTP/gRPC listeners are outside the current milestone.
+
+## Zig-native backend
+
+`just backend` builds `libtriton_zig_passthrough.so` into
+`zig-out/backends/zig_passthrough/`. `just backend-demo` loads it in real Triton
+and checks pass-through inference. These commands require Triton's C headers
+and shared library, but no C++ backend utilities or CUDA installation.
+
+`just backend-cuda-test` explicitly builds a separate CUDA variant and checks
+real CPU/pinned/device input and output buffers on local device 0. It requires
+CUDA development headers, shared `cudart` and a working NVIDIA driver. GPU tests
+remain local; CI runs the CPU plugin and regression suite. Existing typed
+request/response and scheduler APIs retain their CPU buffer ownership rules.
 
 ## Phase 2 CPU demo
 

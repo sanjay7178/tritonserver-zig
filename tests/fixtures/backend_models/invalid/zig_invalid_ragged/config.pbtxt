@@ -1,0 +1,7 @@
+name: "zig_invalid_ragged"
+backend: "zig_passthrough"
+max_batch_size: 8
+input [{ name: "IN0" data_type: TYPE_INT32 dims: [4] allow_ragged_batch: true }]
+output [{ name: "OUT0" data_type: TYPE_INT32 dims: [4] }]
+dynamic_batching {}
+instance_group [{ kind: KIND_CPU count: 1 }]

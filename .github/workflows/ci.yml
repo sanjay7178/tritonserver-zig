@@ -48,7 +48,8 @@ jobs:
 
       - name: Check formatting and shell syntax
         run: |
-          zig fmt --check build.zig build.zig.zon src
+          zig fmt --check build.zig build.zig.zon src \
+            tests/fixtures/backends/phase5_execute_only.zig
           sh -n tools/build/build_demo_backend.sh
           sh -n tools/build/build_scheduler_backend.sh
           sh -n tools/experiments/gpu_batch/build.sh
@@ -186,6 +187,7 @@ jobs:
           zig build demo
           zig build infer-demo
           zig build scheduler-demo
+          zig build backend-demo
 
       - name: Check benchmark harness
         run: |

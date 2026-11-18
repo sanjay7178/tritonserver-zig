@@ -35,6 +35,17 @@ infer-demo:
 scheduler-demo:
     zig build scheduler-demo
 
+# Build the Zig-native CPU plugin, or load it and verify real inference
+backend:
+    zig build backend
+
+backend-demo:
+    zig build backend-demo
+
+# Optional local CUDA test; CI needs neither CUDA headers nor a GPU
+backend-cuda-test:
+    zig build backend-cuda-test -Dbackend-cuda=true
+
 # Compare unbatched and batched throughput; pass --gpu-index to sample a GPU
 [positional-arguments]
 scheduler-bench *args:

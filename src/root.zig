@@ -1,8 +1,9 @@
 //! Public API for the Triton Server Zig bindings.
 //!
-//! `c` exposes the complete upstream tritonserver.h API. Handles are opaque;
+//! `c` exposes the upstream server and backend C APIs. Handles are opaque;
 //! follow the header's ownership rules and pass each returned error to check.
 pub const c = @import("core/bindings/c.zig").raw;
+pub const backend = @import("backend/root.zig");
 pub const TritonErr = @import("core/bindings/error.zig").TritonErr;
 pub const check = @import("core/bindings/error.zig").check;
 pub const DataType = @import("core/bindings/datatype.zig").DataType;
@@ -30,6 +31,8 @@ pub const SchedulerStats = @import("core/scheduler/scheduler.zig").SchedulerStat
 pub const ScheduledInference = @import("core/scheduler/scheduler.zig").ScheduledInference;
 
 test {
+    _ = backend;
+    _ = @import("tests/integration/backend_test.zig");
     _ = @import("tests/integration/bindings_test.zig");
     _ = @import("tests/unit/model_test.zig");
     _ = @import("tests/unit/repository_test.zig");

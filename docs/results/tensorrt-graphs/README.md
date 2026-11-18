@@ -35,3 +35,41 @@ digests, software versions, host submission timings, CUDA event timings for
 compute and pinned transfers, Triton phase means, and sampled device
 utilization and memory. The [benchmark instructions](../../../tools/experiments/tensorrt_graphs/README.md)
 describe how to reproduce the workload and interpret the measurements.
+
+## Independent CUDA trace
+
+Nsight Systems 2026.5.2 recorded the embedded Zig client executing four warmup
+requests and eight measured requests per case without the launch probe. The
+CUDA runtime returned 12 graph launches in each graphs-on trace, and CUPTI
+recorded 12 graph executions on the GPU. Each trace contained 12 host-to-device
+and 12 device-to-host copies of the expected tensor size.
+
+| Batch | Graphs | GPU graph executions | Device compute, µs/request | H2D, µs | D2H, µs |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | Off | 0 | 25.843 | 0.413 | 1.056 |
+| 1 | On | 12 | 25.336 | 0.416 | 0.963 |
+| 8 | Off | 0 | 25.875 | 2.040 | 2.621 |
+| 8 | On | 12 | 25.357 | 2.405 | 2.720 |
+
+Graphs-off compute is the sum of the three standalone kernel durations per
+request. Graphs-on compute is the duration of the graph activity, which can
+include gaps between nodes. The transfer columns average only request-sized
+copies. The throughput and latency table above comes from the unprofiled runs.
+
+With the setup environment loaded and a completed benchmark, set `result` to
+its output directory. This example captures the two batch-8 cases.
+
+```sh
+for graphs in 0 1; do
+    nsys profile --trace=cuda --sample=none --cpuctxsw=none \
+        --cuda-graph-trace=graph --export=sqlite --output="$result/nsys-b8-g$graphs" \
+        "$result/zig/bin/tensorrt-bench" "$result/b8-graphs-$graphs/models" \
+        "$TRT_PREFIX/backends" bench "$result/batch-8.bin" 8 512 4 8 0
+    nsys stats --report cuda_api_sum,cuda_gpu_trace "$result/nsys-b8-g$graphs.sqlite"
+done
+```
+
+The SQLite export contains the graphs-on GPU records in
+`CUPTI_ACTIVITY_KIND_GRAPH_TRACE`, individual kernels in
+`CUPTI_ACTIVITY_KIND_KERNEL`, and the request-sized transfers in
+`CUPTI_ACTIVITY_KIND_MEMCPY`. Activity timestamps are in nanoseconds.

@@ -28,7 +28,7 @@ test "real inference copies caller inputs and returns owned typed outputs" {
     try request.addInput(i32, "IN0", &.{4}, &input);
     try request.requestOutput("OUT0");
     @memset(&input, 0);
-    var response = try server.inferSync(testing.allocator, &request);
+    var response = try server.inferSync(testing.allocator, testing.io, &request);
     defer response.deinit();
     const output = try response.output("OUT0");
     try testing.expectEqual(t.DataType.int32, output.datatype);
@@ -53,7 +53,7 @@ test "real batched inference decodes the full batch with its protocol shape" {
     for (&input, 0..) |*value, i| value.* = @as(i32, @intCast(i)) - 16;
     // A full batch avoids waiting for this fixture's five-second batch window.
     try request.addInput(i32, "IN0", &.{ 8, 4 }, &input);
-    var response = try server.inferSync(testing.allocator, &request);
+    var response = try server.inferSync(testing.allocator, testing.io, &request);
     defer response.deinit();
     const output = try response.output("OUT0");
     try testing.expectEqualSlices(i64, &.{ 8, 4 }, output.shape);
@@ -71,13 +71,13 @@ const Worker = struct {
         };
     }
 
-    fn perform(self: *Worker) !void {
+    fn perform(self: *Worker) anyerror!void {
         // Each worker has its own request/response; libc allocation is safe
         // across callback threads and independent caller threads.
         var request = try t.Request.init(std.heap.c_allocator, self.server, "nonbatching", -1);
         defer destroyRequest(&request);
         try request.addInput(i32, "IN0", &.{4}, &self.input);
-        var response = try self.server.inferSync(std.heap.c_allocator, &request);
+        var response = try self.server.inferSync(std.heap.c_allocator, testing.io, &request);
         defer response.deinit();
         const output = try response.output("OUT0");
         try testing.expectEqualSlices(i32, &self.input, try output.asSlice(i32));
@@ -105,6 +105,26 @@ test "independent callers can infer concurrently through the same live server" {
     for (workers) |worker| if (worker.failure) |err| return err;
 }
 
+test "Io tasks run real inference with native callback completion" {
+    var server = try startServer();
+    defer destroyServer(&server);
+    var workers = [_]Worker{
+        .{ .server = &server, .input = .{ 1, 2, 3, 4 } },
+        .{ .server = &server, .input = .{ -11, -12, -13, -14 } },
+    };
+    var futures: [workers.len]std.Io.Future(anyerror!void) = undefined;
+    var started: usize = 0;
+    defer for (futures[0..started]) |*future| {
+        // Each task owns and frees its request and result, including on error.
+        _ = future.cancel(testing.io) catch {};
+    };
+    for (&workers) |*worker| {
+        futures[started] = try testing.io.concurrent(Worker.perform, .{worker});
+        started += 1;
+    }
+    for (futures[0..started]) |*future| try future.await(testing.io);
+}
+
 test "released requests can be reused and each response remains independent" {
     var server = try startServer();
     defer destroyServer(&server);
@@ -113,9 +133,9 @@ test "released requests can be reused and each response remains independent" {
     const input = [_]i32{ 7, -2, 0, 91 };
     try request.addInput(i32, "IN0", &.{4}, &input);
     try request.requestOutput("OUT0");
-    var first = try server.inferSync(testing.allocator, &request);
+    var first = try server.inferSync(testing.allocator, testing.io, &request);
     defer first.deinit();
-    var second = try server.inferSync(testing.allocator, &request);
+    var second = try server.inferSync(testing.allocator, testing.io, &request);
     defer second.deinit();
     try testing.expectEqualSlices(i32, &input, try (try first.output("OUT0")).asSlice(i32));
     try testing.expectEqualSlices(i32, &input, try (try second.output("OUT0")).asSlice(i32));
@@ -136,14 +156,14 @@ test "request validation rejects invalid dimensions, element counts and duplicat
     try testing.expectError(error.UnsupportedDataType, request.addInput(u128, "IN0", &.{1}, &.{1}));
     try request.addInput(i32, "IN0", &.{4}, &input);
     try testing.expectError(error.DuplicateInput, request.addInput(i32, "IN0", &.{4}, &input));
-    var response = try server.inferSync(testing.allocator, &request);
+    var response = try server.inferSync(testing.allocator, testing.io, &request);
     defer response.deinit();
     try testing.expectEqualSlices(i32, &input, try (try response.output("OUT0")).asSlice(i32));
     try request.deinit();
     try request.deinit();
     try testing.expectError(error.RequestClosed, request.addInput(i32, "IN0", &.{4}, &input));
     try testing.expectError(error.RequestClosed, request.requestOutput("OUT0"));
-    try testing.expectError(error.RequestClosed, server.inferSync(testing.allocator, &request));
+    try testing.expectError(error.RequestClosed, server.inferSync(testing.allocator, testing.io, &request));
 }
 
 test "unknown models and invalid requested outputs produce inference errors" {
@@ -161,7 +181,7 @@ test "unknown models and invalid requested outputs produce inference errors" {
     defer destroyRequest(&request);
     try request.addInput(i32, "IN0", &.{4}, &.{ 1, 2, 3, 4 });
     try request.requestOutput("phase3_missing_output");
-    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, &request));
+    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, testing.io, &request));
     // Immediate submission failure must leave ownership with the request.
     try request.deinit();
 }
@@ -171,11 +191,11 @@ test "Triton rejects missing inputs and mismatched model input datatypes" {
     defer destroyServer(&server);
     var empty = try t.Request.init(testing.allocator, &server, "nonbatching", -1);
     defer destroyRequest(&empty);
-    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, &empty));
+    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, testing.io, &empty));
     var wrong_type = try t.Request.init(testing.allocator, &server, "nonbatching", -1);
     defer destroyRequest(&wrong_type);
     try wrong_type.addInput(f32, "IN0", &.{4}, &.{ 1, 2, 3, 4 });
-    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, &wrong_type));
+    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, testing.io, &wrong_type));
 }
 
 fn inferAllocationCase(alloc: std.mem.Allocator, server: *t.Server) !void {
@@ -183,7 +203,7 @@ fn inferAllocationCase(alloc: std.mem.Allocator, server: *t.Server) !void {
     defer destroyRequest(&request);
     try request.addInput(i32, "IN0", &.{4}, &.{ 4, 3, 2, 1 });
     try request.requestOutput("OUT0");
-    var response = try server.inferSync(alloc, &request);
+    var response = try server.inferSync(alloc, testing.io, &request);
     defer response.deinit();
     try testing.expectEqualSlices(i32, &.{ 4, 3, 2, 1 }, try (try response.output("OUT0")).asSlice(i32));
 }
@@ -218,10 +238,10 @@ test "asynchronous backend errors map and release all callback ownership" {
     // The request passes model validation. The test-only backend then returns
     // an execute error, which Triton delivers through the response callback.
     try request.addInput(i32, "IN0", &.{4}, &.{ 1, 2, 3, 4 });
-    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, &request));
+    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, testing.io, &request));
     // Both callback paths must have completed, allowing safe immediate reuse
     // and eventual cleanup even when a response carries a backend error.
-    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, &request));
+    try testing.expectError(error.InvalidArg, server.inferSync(testing.allocator, testing.io, &request));
 }
 
 test "pending inference guards request ownership until wait and supports safe draining" {
@@ -230,19 +250,19 @@ test "pending inference guards request ownership until wait and supports safe dr
     var request = try t.Request.init(testing.allocator, &server, "nonbatching", -1);
     defer destroyRequest(&request);
     try request.addInput(i32, "IN0", &.{4}, &.{ 10, 20, 30, 40 });
-    var pending = try server.inferAsync(testing.allocator, &request);
+    var pending = try server.inferAsync(testing.allocator, testing.io, &request);
     defer pending.deinit();
     try testing.expectError(error.RequestInFlight, request.deinit());
     try testing.expectError(error.RequestInFlight, request.requestOutput("OUT0"));
-    try testing.expectError(error.RequestInFlight, server.inferSync(testing.allocator, &request));
+    try testing.expectError(error.RequestInFlight, server.inferSync(testing.allocator, testing.io, &request));
     var response = try pending.wait();
     defer response.deinit();
     try testing.expectEqualSlices(i32, &.{ 10, 20, 30, 40 }, try (try response.output("OUT0")).asSlice(i32));
     // Dropping a pending owner must drain both response and release callbacks.
-    var discarded = try server.inferAsync(testing.allocator, &request);
+    var discarded = try server.inferAsync(testing.allocator, testing.io, &request);
     discarded.deinit();
     discarded.deinit();
-    var after_discard = try server.inferSync(testing.allocator, &request);
+    var after_discard = try server.inferSync(testing.allocator, testing.io, &request);
     defer after_discard.deinit();
     try testing.expectEqualSlices(i32, &.{ 10, 20, 30, 40 }, try (try after_discard.output("OUT0")).asSlice(i32));
 }
@@ -279,10 +299,10 @@ test "requests cannot be submitted through a different live server" {
     var request = try t.Request.init(testing.allocator, &first, "nonbatching", -1);
     defer destroyRequest(&request);
     try request.addInput(i32, "IN0", &.{4}, &.{ 9, 8, 7, 6 });
-    try testing.expectError(error.RequestServerMismatch, second.inferSync(testing.allocator, &request));
+    try testing.expectError(error.RequestServerMismatch, second.inferSync(testing.allocator, testing.io, &request));
     // Rejected submission leaves the original request idle and usable by its
     // owning server, rather than taking ownership or installing live callbacks.
-    var response = try first.inferSync(testing.allocator, &request);
+    var response = try first.inferSync(testing.allocator, testing.io, &request);
     defer response.deinit();
     try testing.expectEqualSlices(i32, &.{ 9, 8, 7, 6 }, try (try response.output("OUT0")).asSlice(i32));
 }

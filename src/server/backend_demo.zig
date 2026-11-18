@@ -1,7 +1,7 @@
 const std = @import("std");
 const t = @import("tritonserver_zig");
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     const alloc = std.heap.c_allocator;
     var plugin = try t.backend.PluginLibrary.load(".zig-cache/phase5/backends/zig_passthrough/libtriton_zig_passthrough.so");
     defer plugin.deinit();
@@ -16,7 +16,7 @@ pub fn main() !void {
     const values = [_]i32{ 42, -7, 0, 9, std.math.minInt(i32), std.math.maxInt(i32) };
     try request.addInput(i32, "IN0", &.{ 2, 3 }, &values);
     try request.requestOutput("OUT0");
-    var result = try server.inferSync(alloc, &request);
+    var result = try server.inferSync(alloc, init.io, &request);
     defer result.deinit();
     const output = try result.output("OUT0");
     if (!std.mem.eql(i64, output.shape, &.{ 2, 3 }) or

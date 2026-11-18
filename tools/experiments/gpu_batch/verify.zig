@@ -70,10 +70,10 @@ fn checkOutput(result: *const t.InferenceResponse, first_sample: usize, count: u
     }
 }
 
-fn runGroup(server: *const t.Server, options: Options, label: []const u8, counts: []const usize) !void {
+fn runGroup(io: std.Io, server: *const t.Server, options: Options, label: []const u8, counts: []const usize) !void {
     var total: usize = 0;
     for (counts) |count| total += count;
-    var scheduler = try t.Scheduler.init(alloc, server, options.model, 1, .{
+    var scheduler = try t.Scheduler.init(alloc, io, server, options.model, 1, .{
         .max_batch_size = @intCast(total),
         .max_wait_us = if (total == 1) 0 else 1_000_000,
         .worker_count = 1,
@@ -133,9 +133,9 @@ pub fn main(init: std.process.Init) !void {
         .log_info = false,
     });
     defer server.deinit() catch @panic("verification server cleanup failed");
-    try runGroup(&server, options, "B1", &.{1});
-    try runGroup(&server, options, "Eight B1", &.{ 1, 1, 1, 1, 1, 1, 1, 1 });
-    try runGroup(&server, options, "Mixed B1/B3/B4", &.{ 1, 3, 4 });
+    try runGroup(init.io, &server, options, "B1", &.{1});
+    try runGroup(init.io, &server, options, "Eight B1", &.{ 1, 1, 1, 1, 1, 1, 1, 1 });
+    try runGroup(init.io, &server, options, "Mixed B1/B3/B4", &.{ 1, 3, 4 });
     try server.stop();
     std.debug.print("Numerical and scheduler ownership checks passed for {s}.\n", .{options.model});
 }

@@ -337,7 +337,7 @@ fn percentile(sorted: []const u64, percent: usize) f64 {
 }
 
 fn runCase(io: std.Io, server: *const t.Server, workload: Workload, options: Options, batch: u32, wait: u64) !CaseReport {
-    var scheduler = try t.Scheduler.init(alloc, server, options.model, options.version, .{
+    var scheduler = try t.Scheduler.init(alloc, io, server, options.model, options.version, .{
         .max_batch_size = batch,
         .max_wait_us = wait,
         .worker_count = options.workers,

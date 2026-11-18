@@ -49,26 +49,64 @@ SIGTERM during inference, and the loaded Triton core path on Linux.
 
 ## Benchmark TensorRT over loopback
 
-Run the [in-process benchmark](../tools/experiments/tensorrt_graphs/README.md)
-first to generate the plan, fixtures, and report. Build the gRPC executable with
-that same GPU prefix. Extract the stock `tritonserver` executable from the same
-NVIDIA release archive and load the GPU environment for both processes.
+Load the [TensorRT setup environment](../tools/experiments/tensorrt_graphs/README.md)
+and build the gRPC executable with its GPU prefix. Extract the stock
+`tritonserver` executable from the same NVIDIA release archive. Prepare the
+shared plan and fixtures, then run both servers through NVIDIA's Python client.
 
 ```sh
 unzip -j /path/to/tritonserver.zip tritonserver/bin/tritonserver -d .deps/stock
-python -B tools/experiments/tensorrt_graphs/grpc_benchmark.py \
+uv pip install --python "$TRT_PYTHON" 'tritonclient[grpc]==2.69.0'
+"$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/benchmark.py \
+    --prepare-only --triton-prefix "$TRT_PREFIX" --output-dir .deps/tensorrt-artifacts
+"$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/grpc_benchmark.py \
     --zig-server zig-out/bin/tritonserver_zig \
     --stock-server .deps/stock/tritonserver --triton-prefix "$TRITON_PREFIX" \
-    --artifacts /path/to/in-process-results --output-dir .deps/grpc-results
+    --artifacts .deps/tensorrt-artifacts --output-dir .deps/grpc-results
 ```
 
-The benchmark runs one request in flight and compares explicit batches of 1
-and 8 with graphs off and on. It checks the plan and library digests against
-the in-process run, verifies output against the same NumPy reference, and
+The benchmark compares explicit batches of 1 and 8 with graphs off and on.
+It keeps one request in flight by default. Use `--concurrency 4` or
+`--concurrency 8` to exercise multiple fixed worker lanes on both servers.
+It checks the plan and library digests against the prepared artifacts,
+verifies output against the same NumPy reference, and
 counts backend `cudaGraphLaunch` calls in separate proof runs. The latency
 includes Python tensor marshalling, the loopback RPC and response decoding.
 See the [RTX 4050 gRPC measurements](results/tensorrt-graphs/README.md#loopback-grpc)
-for the three-path comparison.
+for the recorded comparison with the optional embedded control.
+
+The generated plans and references can also be passed to the
+[manual Zig TensorRT tests](../tests/fixtures/tensorrt/README.md).
+
+### Benchmark a YOLO video pipeline
+
+With the same GPU environment loaded, install FFmpeg and FFprobe and add the
+video dependencies to the benchmark's Python environment.
+
+```sh
+uv pip install --python "$TRT_PYTHON" 'tritonclient[grpc]==2.69.0' \
+    'onnx==1.17.0' 'Pillow==11.3.0'
+"$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/video_setup.py \
+    --output-dir .deps/yolo-video --gpu 0
+"$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/video_benchmark.py \
+    --zig-server zig-out/bin/tritonserver_zig \
+    --stock-server .deps/stock/tritonserver --triton-prefix "$TRT_PREFIX" \
+    --artifacts .deps/yolo-video --output-dir .deps/yolo-video-results
+```
+
+The setup uses published YOLOv8n weights and normalizes the pinned
+1280×720 airport clip to a 1920×1080 frame input. It builds one TensorRT
+plan per model on the selected GPU. Each frame batch makes two gRPC calls.
+YOLOv8n detects objects at 640×640, then a deterministic regression fixture
+predicts box offsets from up to four resized crops per frame.
+
+Timed runs start with decoded RGB frames and include preprocessing, both
+RPCs, class-aware NMS, and box refinement. The report gives frame throughput
+and batch latency separately from per-model RPC timings. Paired trials switch
+server order, verify detections and regression outputs, and check native
+Triton execution counts. Separate proof runs count CUDA Graph launches for
+both models.
+[RTX 4050 video measurements](results/tensorrt-graphs/README.md#yolov8n-video-over-grpc)
 
 ## Upgrade
 

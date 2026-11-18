@@ -42,6 +42,11 @@ from the same weights, seed and shapes. Keep the default width and batch sizes
 for a comparable workload. Use an otherwise idle GPU when comparing timing or
 device utilization across runs.
 
+Use `--prepare-only` to generate the plan, input fixtures, graph probe, and
+model repositories without building or running the embedded timing client.
+The resulting directory also supplies the [manual Zig GPU tests](../../../tests/fixtures/tensorrt/README.md)
+and the [Python gRPC benchmark](../../../docs/grpc.md#benchmark-tensorrt-over-loopback).
+
 ## Measurements
 
 - **Engine only.** TensorRT runs on one CUDA stream with device-resident input

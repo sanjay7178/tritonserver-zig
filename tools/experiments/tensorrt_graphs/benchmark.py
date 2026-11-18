@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare TensorRT and the embedded Zig wrapper on a single NVIDIA GPU."""
+"""Prepare a TensorRT workload and optionally benchmark it through embedded Zig."""
 
 import argparse
 import csv
@@ -194,13 +194,18 @@ def main():
     parser.add_argument("--gpu", default="0", help="nvidia-smi GPU index or UUID")
     parser.add_argument("--width", type=int, default=512)
     parser.add_argument("--batches", type=int, nargs="+", default=[1, 8])
+    parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="generate the plan, input fixtures, graph probe, and model repositories",
+    )
     parser.add_argument("--warmup", type=int, default=1000)
     parser.add_argument("--iterations", type=int, default=20000)
     args = parser.parse_args()
     batches = sorted(set(args.batches))
     if not 1 <= args.width <= 8192 or not 1 <= min(batches) <= max(batches) <= 1024:
         parser.error("width must be in 1..8192 and batch sizes in 1..1024")
-    if args.warmup < 2 or args.iterations < 2:
+    if not args.prepare_only and min(args.warmup, args.iterations) < 2:
         parser.error("warmup and iterations must both be at least 2")
     if sys.platform != "linux" or sys.byteorder != "little":
         parser.error("requires little-endian Linux with NVIDIA CUDA")
@@ -224,22 +229,23 @@ def main():
         if part
     )
     env.pop("LD_PRELOAD", None)
-    install = output / "zig"
-    subprocess.run(
-        [
-            "zig",
-            "build",
-            "tensorrt-bench",
-            f"-Dtriton-prefix={prefix}",
-            "-Doptimize=ReleaseSafe",
-            "--prefix",
-            install,
-        ],
-        cwd=ROOT,
-        env=env,
-        check=True,
-    )
-    client = install / "bin/tensorrt-bench"
+    if not args.prepare_only:
+        install = output / "zig"
+        subprocess.run(
+            [
+                "zig",
+                "build",
+                "tensorrt-bench",
+                f"-Dtriton-prefix={prefix}",
+                "-Doptimize=ReleaseSafe",
+                "--prefix",
+                install,
+            ],
+            cwd=ROOT,
+            env=env,
+            check=True,
+        )
+        client = install / "bin/tensorrt-bench"
     probe = output / "graph-probe.so"
     subprocess.run(
         [
@@ -275,7 +281,6 @@ def main():
         },
         "kernel": platform.release(),
         "python": platform.python_version(),
-        "zig": subprocess.check_output(["zig", "version"], text=True).strip(),
         "triton_distribution_version": version_path.read_text().strip()
         if version_path.is_file()
         else None,
@@ -283,16 +288,29 @@ def main():
         "triton_tensorrt_backend_sha256": sha256(backend.read_bytes()).hexdigest(),
         "plan_sha256": sha256(plan.read_bytes()).hexdigest(),
         "plan_size_bytes": plan.stat().st_size,
-        "warmup_requests": args.warmup,
-        "requests_in_flight": 1,
         "request_batch_sizes": batches,
         **metadata,
         "cases": [],
     }
+    if not args.prepare_only:
+        report.update(
+            zig=subprocess.check_output(["zig", "version"], text=True).strip(),
+            warmup_requests=args.warmup,
+            requests_in_flight=1,
+        )
     for batch in batches:
         for graphs in (False, True):
             case = output / f"b{batch}-graphs-{int(graphs)}"
             repository = model_repository(case, plan, batch, args.width, graphs)
+            case_report = {
+                "batch_size": batch,
+                "graphs_enabled": graphs,
+                "tensor_bytes_per_direction": batch * args.width * 4,
+            }
+            report["cases"].append(case_report)
+            if args.prepare_only:
+                continue
+
             zig_command = [
                 client,
                 repository,
@@ -351,26 +369,21 @@ def main():
                     env,
                 ),
             )
-            report["cases"].append(
-                {
-                    "batch_size": batch,
-                    "graphs_enabled": graphs,
-                    "tensor_bytes_per_direction": batch * args.width * 4,
-                    "replay_proof": {
-                        "inferences": 12,
-                        "backend_cudaGraphLaunch_successes": launches,
-                        "triton_c_api": proof["triton_c_api"],
-                        "max_abs_error": proof["max_abs_error"],
-                    },
-                    "engine_only": {
-                        **summarize_result(engine, batch),
-                        "graph_launches_timed": engine["graph_launches_timed"],
-                    },
-                    "embedded_zig": {
-                        **summarize_result(zig, batch),
-                        "triton_statistics": triton_stats(zig, batch, args.iterations),
-                    },
-                }
+            case_report.update(
+                replay_proof={
+                    "inferences": 12,
+                    "backend_cudaGraphLaunch_successes": launches,
+                    "triton_c_api": proof["triton_c_api"],
+                    "max_abs_error": proof["max_abs_error"],
+                },
+                engine_only={
+                    **summarize_result(engine, batch),
+                    "graph_launches_timed": engine["graph_launches_timed"],
+                },
+                embedded_zig={
+                    **summarize_result(zig, batch),
+                    "triton_statistics": triton_stats(zig, batch, args.iterations),
+                },
             )
     result_path = output / "report.json"
     result_path.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")

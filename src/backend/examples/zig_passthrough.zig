@@ -1,4 +1,11 @@
 //! Fixed-width IN0 -> OUT0 backend, built with a CPU or optional CUDA copy engine.
+//! Adapted from triton-inference-server/backend@efad1152ed836d336bb04cc4095ffe026e780bb7,
+//! examples/backends/minimal/src/minimal.cc. Compare ModelState,
+//! ModelInstanceState, TRITONBACKEND_ModelInitialize and
+//! TRITONBACKEND_ModelInstanceExecute. This version supports fixed-width
+//! tensors and segmented buffers, with response rollback in the Zig SDK.
+//! Full BackendInputCollector and BackendOutputResponder staging and
+//! gather/scatter are outside this example's copy path.
 const std = @import("std");
 const t = @import("tritonserver_zig");
 const b = t.backend;

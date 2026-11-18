@@ -25,11 +25,11 @@ zig-out/bin/tritonserver_zig --grpc-listen 127.0.0.1:8001 \
     --model-repository /path/to/models --backend-directory /path/to/backends
 ```
 
-Use `gpu` with a GPU-enabled Triton prefix. Load its runtime environment
-before building and starting the executable so the GPU core and backend
-can locate their dependencies. The frontend hands inline tensors to that
-core, which owns GPU execution.
-[NVIDIA Triton 2.69.0 release](https://github.com/triton-inference-server/server/releases/tag/v2.69.0)
+Use `gpu` with the GPU Triton prefix from the
+[TensorRT setup](../tools/experiments/tensorrt_graphs/README.md). Source its
+environment before building and before starting the executable so the GPU core
+and backend can locate their dependencies. The frontend hands inline tensors
+to that core, which owns GPU execution.
 
 ## Validate
 
@@ -47,11 +47,75 @@ python tests/integration/grpc_native.py \
 The check exercises NVIDIA's client, the passthrough tensor, port collision,
 SIGTERM during inference, and the loaded Triton core path on Linux.
 
+## Benchmark TensorRT over loopback
+
+Load the [TensorRT setup environment](../tools/experiments/tensorrt_graphs/README.md)
+and build the gRPC executable with its GPU prefix. Extract the stock
+`tritonserver` executable from the same NVIDIA release archive. Prepare the
+shared plan and fixtures, then run both servers through NVIDIA's Python client.
+
+```sh
+tools/build/build_grpc_frontend.sh "$TRT_PREFIX" gpu
+zig build -Dgrpc=true -Dtriton-prefix="$TRT_PREFIX" -Doptimize=ReleaseSafe
+unzip -j "${TRITON_DOWNLOAD_CACHE:-.deps/tensorrt-graphs/downloads}/tritonserver.zip" \
+    tritonserver/bin/tritonserver -d .deps/stock
+uv pip install --python "$TRT_PYTHON" 'tritonclient[grpc]==2.69.0'
+"$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/benchmark.py \
+    --prepare-only --triton-prefix "$TRT_PREFIX" --output-dir .deps/tensorrt-artifacts
+"$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/grpc_benchmark.py \
+    --zig-server zig-out/bin/tritonserver_zig \
+    --stock-server .deps/stock/tritonserver --triton-prefix "$TRT_PREFIX" \
+    --artifacts .deps/tensorrt-artifacts --output-dir .deps/grpc-results
+```
+
+The benchmark compares explicit batches of 1 and 8 with graphs off and on.
+It keeps one request in flight by default. Use `--concurrency 4` or
+`--concurrency 8` to exercise multiple fixed worker lanes on both servers.
+It checks the plan and library digests against the prepared artifacts,
+verifies output against the same NumPy reference, and
+counts backend `cudaGraphLaunch` calls in separate proof runs. The latency
+includes Python tensor marshalling, the loopback RPC and response decoding.
+See the [RTX 4050 gRPC measurements](results/tensorrt-graphs/README.md#loopback-grpc)
+for the recorded comparison.
+
+The generated plans and references can also be passed to the
+[manual Zig TensorRT tests](../tests/fixtures/tensorrt/README.md).
+
+### Benchmark a YOLO video pipeline
+
+Use the same GPU build and stock server shown above. Install FFmpeg with
+FFprobe and add the video dependencies to the benchmark's Python environment.
+
+```sh
+uv pip install --python "$TRT_PYTHON" 'tritonclient[grpc]==2.69.0' \
+    'onnx==1.17.0' 'Pillow==11.3.0'
+"$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/video_setup.py \
+    --output-dir .deps/yolo-video --gpu 0
+"$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/video_benchmark.py \
+    --zig-server zig-out/bin/tritonserver_zig \
+    --stock-server .deps/stock/tritonserver --triton-prefix "$TRT_PREFIX" \
+    --artifacts .deps/yolo-video --output-dir .deps/yolo-video-results
+```
+
+The setup uses published YOLOv8n weights and normalizes the pinned
+1280×720 airport clip to a 1920×1080 frame input. It builds one TensorRT
+plan per model on the selected GPU. Each frame batch makes two gRPC calls.
+YOLOv8n detects objects at 640×640, then a deterministic regression fixture
+predicts box offsets from up to four resized crops per frame.
+
+Timed runs start with decoded RGB frames and include preprocessing, both
+RPCs, class-aware NMS, and box refinement. The report gives frame throughput
+and batch latency separately from per-model RPC timings. Paired trials switch
+server order and verify matching detection counts and native Triton execution
+counts. Separate proof runs compare detector tensors, regression outputs, and
+refined boxes and count CUDA Graph launches across the two models.
+[RTX 4050 video measurements](results/tensorrt-graphs/README.md#yolov8n-video-over-grpc)
+
 ## Upgrade
 
 The build helper pins the NVIDIA r26.05 server, common, and third-party
 sources together. Rebuild the adapter when upgrading those sources or the
-installed core. Run the CPU client check and verify inference on the selected
-GPU runtime. The bridge borrows the server handle and keeps the
+installed core. Run the CPU client check and repeat the TensorRT comparison on
+the selected GPU runtime. The bridge borrows the server handle and keeps the
 native frontend alive while Triton drains accepted work.
 [Native endpoint](https://github.com/triton-inference-server/server/tree/r26.05/src/grpc)

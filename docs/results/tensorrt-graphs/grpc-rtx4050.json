@@ -1,0 +1,348 @@
+{
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 4050 Laptop GPU",
+    "driver_version": "595.104.02",
+    "compute_cap": "8.9",
+    "memory.total": 6141
+  },
+  "triton_distribution_version": "2.69.0",
+  "tritonclient": "2.69.0",
+  "grpcio": "1.67.1",
+  "python": "3.12.8",
+  "plan_sha256": "1a42840927038a2a6b4281a80eeb44a3ff98678337f25a17d598b137e2665b56",
+  "triton_library_sha256": "0b6de07f433304ad62c4c85fd7cb2a210c3db43c6c0a095d6b9c1cb6cb2d91da",
+  "triton_tensorrt_backend_sha256": "bc30a31059a0ab0c3b6e792f5f1612ad4529e91cfa854690a33c219b19690f36",
+  "native_metrics": "enabled on both servers, stock exporter bound to loopback",
+  "warmup_requests": 1000,
+  "requests_in_flight": 1,
+  "cases": [
+    {
+      "batch_size": 1,
+      "graphs_enabled": false,
+      "zig_grpc": {
+        "iterations": 20000,
+        "elapsed_s": 11.5920468,
+        "requests_per_s": 1725.320846703276,
+        "samples_per_s": 1725.320846703276,
+        "max_abs_error": 6.705522537231445e-07,
+        "device_telemetry": {
+          "sample_period_requested_ms": 50,
+          "samples": 231,
+          "utilization_samples": 231,
+          "memory_samples": 231,
+          "gpu_utilization_mean_pct": 7.034632034632034,
+          "gpu_utilization_peak_pct": 9,
+          "memory_baseline_mib": 201,
+          "memory_peak_mib": 201
+        },
+        "latency_us": {
+          "mean": 577.74254665,
+          "p50": 559.3905,
+          "p95": 915.2788,
+          "p99": 1253.88129
+        },
+        "triton_statistics": {
+          "executions": 20000,
+          "samples": 20000,
+          "phase_mean_us": {
+            "success": 219.31158,
+            "queue": 23.07458225,
+            "compute_input": 33.497836199999995,
+            "compute_infer": 63.7239814,
+            "compute_output": 40.640039900000005
+          }
+        },
+        "replay_proof": {
+          "requests": 12,
+          "backend_cudaGraphLaunch_successes": 0,
+          "max_abs_error": 6.705522537231445e-07
+        }
+      },
+      "stock_grpc": {
+        "iterations": 20000,
+        "elapsed_s": 11.221117428,
+        "requests_per_s": 1782.3536852126774,
+        "samples_per_s": 1782.3536852126774,
+        "max_abs_error": 6.705522537231445e-07,
+        "device_telemetry": {
+          "sample_period_requested_ms": 50,
+          "samples": 223,
+          "utilization_samples": 223,
+          "memory_samples": 223,
+          "gpu_utilization_mean_pct": 7.2825112107623315,
+          "gpu_utilization_peak_pct": 9,
+          "memory_baseline_mib": 201,
+          "memory_peak_mib": 201
+        },
+        "latency_us": {
+          "mean": 559.1919486,
+          "p50": 550.0705,
+          "p95": 868.2353499999999,
+          "p99": 1105.14955
+        },
+        "triton_statistics": {
+          "executions": 20000,
+          "samples": 20000,
+          "phase_mean_us": {
+            "success": 210.2716159,
+            "queue": 22.22870845,
+            "compute_input": 32.51675735,
+            "compute_infer": 61.879286650000004,
+            "compute_output": 38.632512000000006
+          }
+        },
+        "replay_proof": {
+          "requests": 12,
+          "backend_cudaGraphLaunch_successes": 0,
+          "max_abs_error": 6.705522537231445e-07
+        }
+      }
+    },
+    {
+      "batch_size": 1,
+      "graphs_enabled": true,
+      "zig_grpc": {
+        "iterations": 20000,
+        "elapsed_s": 10.971513111,
+        "requests_per_s": 1822.9026204186978,
+        "samples_per_s": 1822.9026204186978,
+        "max_abs_error": 6.705522537231445e-07,
+        "device_telemetry": {
+          "sample_period_requested_ms": 50,
+          "samples": 219,
+          "utilization_samples": 219,
+          "memory_samples": 219,
+          "gpu_utilization_mean_pct": 7.155251141552512,
+          "gpu_utilization_peak_pct": 9,
+          "memory_baseline_mib": 201,
+          "memory_peak_mib": 201
+        },
+        "latency_us": {
+          "mean": 546.62461985,
+          "p50": 541.2585,
+          "p95": 857.2638499999999,
+          "p99": 1048.0824599999999
+        },
+        "triton_statistics": {
+          "executions": 20000,
+          "samples": 20000,
+          "phase_mean_us": {
+            "success": 185.15841,
+            "queue": 23.006717400000003,
+            "compute_input": 35.2337469,
+            "compute_infer": 36.03765735,
+            "compute_output": 32.9214208
+          }
+        },
+        "replay_proof": {
+          "requests": 12,
+          "backend_cudaGraphLaunch_successes": 12,
+          "max_abs_error": 6.705522537231445e-07
+        }
+      },
+      "stock_grpc": {
+        "iterations": 20000,
+        "elapsed_s": 10.633012456,
+        "requests_per_s": 1880.93450306403,
+        "samples_per_s": 1880.93450306403,
+        "max_abs_error": 6.705522537231445e-07,
+        "device_telemetry": {
+          "sample_period_requested_ms": 50,
+          "samples": 212,
+          "utilization_samples": 212,
+          "memory_samples": 212,
+          "gpu_utilization_mean_pct": 7.188679245283019,
+          "gpu_utilization_peak_pct": 9,
+          "memory_baseline_mib": 201,
+          "memory_peak_mib": 201
+        },
+        "latency_us": {
+          "mean": 529.7740761,
+          "p50": 514.6475,
+          "p95": 843.02205,
+          "p99": 1028.7541999999999
+        },
+        "triton_statistics": {
+          "executions": 20000,
+          "samples": 20000,
+          "phase_mean_us": {
+            "success": 179.45230195,
+            "queue": 22.62828175,
+            "compute_input": 33.96616835,
+            "compute_infer": 35.8649053,
+            "compute_output": 32.69774365
+          }
+        },
+        "replay_proof": {
+          "requests": 12,
+          "backend_cudaGraphLaunch_successes": 12,
+          "max_abs_error": 6.705522537231445e-07
+        }
+      }
+    },
+    {
+      "batch_size": 8,
+      "graphs_enabled": false,
+      "zig_grpc": {
+        "iterations": 20000,
+        "elapsed_s": 13.044415514,
+        "requests_per_s": 1533.2231619373729,
+        "samples_per_s": 12265.785295498983,
+        "max_abs_error": 1.1920928955078125e-06,
+        "device_telemetry": {
+          "sample_period_requested_ms": 50,
+          "samples": 259,
+          "utilization_samples": 259,
+          "memory_samples": 259,
+          "gpu_utilization_mean_pct": 6.764478764478764,
+          "gpu_utilization_peak_pct": 11,
+          "memory_baseline_mib": 201,
+          "memory_peak_mib": 201
+        },
+        "latency_us": {
+          "mean": 650.09489225,
+          "p50": 616.148,
+          "p95": 1042.9775,
+          "p99": 1836.2149
+        },
+        "triton_statistics": {
+          "executions": 20000,
+          "samples": 160000,
+          "phase_mean_us": {
+            "success": 245.1195591,
+            "queue": 24.86502495,
+            "compute_input": 38.354441400000006,
+            "compute_infer": 66.1907726,
+            "compute_output": 48.176336049999996
+          }
+        },
+        "replay_proof": {
+          "requests": 12,
+          "backend_cudaGraphLaunch_successes": 0,
+          "max_abs_error": 1.1920928955078125e-06
+        }
+      },
+      "stock_grpc": {
+        "iterations": 20000,
+        "elapsed_s": 12.650563956,
+        "requests_per_s": 1580.9571865382536,
+        "samples_per_s": 12647.657492306029,
+        "max_abs_error": 1.1920928955078125e-06,
+        "device_telemetry": {
+          "sample_period_requested_ms": 50,
+          "samples": 252,
+          "utilization_samples": 252,
+          "memory_samples": 252,
+          "gpu_utilization_mean_pct": 7.023809523809524,
+          "gpu_utilization_peak_pct": 10,
+          "memory_baseline_mib": 201,
+          "memory_peak_mib": 201
+        },
+        "latency_us": {
+          "mean": 630.43413605,
+          "p50": 625.354,
+          "p95": 965.30665,
+          "p99": 1157.92581
+        },
+        "triton_statistics": {
+          "executions": 20000,
+          "samples": 160000,
+          "phase_mean_us": {
+            "success": 233.999454,
+            "queue": 24.02955705,
+            "compute_input": 36.995555200000005,
+            "compute_infer": 64.54746779999999,
+            "compute_output": 45.05697295
+          }
+        },
+        "replay_proof": {
+          "requests": 12,
+          "backend_cudaGraphLaunch_successes": 0,
+          "max_abs_error": 1.1920928955078125e-06
+        }
+      }
+    },
+    {
+      "batch_size": 8,
+      "graphs_enabled": true,
+      "zig_grpc": {
+        "iterations": 20000,
+        "elapsed_s": 11.585266476,
+        "requests_per_s": 1726.3305976976822,
+        "samples_per_s": 13810.644781581457,
+        "max_abs_error": 1.1920928955078125e-06,
+        "device_telemetry": {
+          "sample_period_requested_ms": 50,
+          "samples": 230,
+          "utilization_samples": 230,
+          "memory_samples": 230,
+          "gpu_utilization_mean_pct": 7.3130434782608695,
+          "gpu_utilization_peak_pct": 9,
+          "memory_baseline_mib": 201,
+          "memory_peak_mib": 201
+        },
+        "latency_us": {
+          "mean": 577.3218137499999,
+          "p50": 569.6565,
+          "p95": 896.9425500000001,
+          "p99": 1088.8603
+        },
+        "triton_statistics": {
+          "executions": 20000,
+          "samples": 160000,
+          "phase_mean_us": {
+            "success": 194.88140595,
+            "queue": 23.15363095,
+            "compute_input": 37.231434650000004,
+            "compute_infer": 35.94015795,
+            "compute_output": 37.013712149999996
+          }
+        },
+        "replay_proof": {
+          "requests": 12,
+          "backend_cudaGraphLaunch_successes": 12,
+          "max_abs_error": 1.1920928955078125e-06
+        }
+      },
+      "stock_grpc": {
+        "iterations": 20000,
+        "elapsed_s": 11.402739838,
+        "requests_per_s": 1753.9644229494172,
+        "samples_per_s": 14031.715383595338,
+        "max_abs_error": 1.1920928955078125e-06,
+        "device_telemetry": {
+          "sample_period_requested_ms": 50,
+          "samples": 227,
+          "utilization_samples": 227,
+          "memory_samples": 227,
+          "gpu_utilization_mean_pct": 7.13215859030837,
+          "gpu_utilization_peak_pct": 9,
+          "memory_baseline_mib": 201,
+          "memory_peak_mib": 201
+        },
+        "latency_us": {
+          "mean": 568.1797182,
+          "p50": 565.3805,
+          "p95": 875.07745,
+          "p99": 1051.01394
+        },
+        "triton_statistics": {
+          "executions": 20000,
+          "samples": 160000,
+          "phase_mean_us": {
+            "success": 191.0467477,
+            "queue": 22.5782324,
+            "compute_input": 36.824707499999995,
+            "compute_infer": 36.10355645,
+            "compute_output": 36.3527505
+          }
+        },
+        "replay_proof": {
+          "requests": 12,
+          "backend_cudaGraphLaunch_successes": 12,
+          "max_abs_error": 1.1920928955078125e-06
+        }
+      }
+    }
+  ]
+}

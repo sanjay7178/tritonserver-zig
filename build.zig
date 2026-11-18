@@ -6,6 +6,7 @@ pub fn build(b: *std.Build) void {
     const custom_prefix = b.option([]const u8, "triton-prefix", "Triton installation with matching headers, libraries and backend utilities");
     const triton_prefix = custom_prefix orelse "core/build/install";
     const prefix_path = if (std.fs.path.isAbsolute(triton_prefix)) triton_prefix else b.root.joinString(b.allocator, triton_prefix) catch @panic("OOM");
+    const grpc = b.option(bool, "grpc", "Enable the native Triton gRPC frontend installed in the Triton prefix") orelse false;
     const backend_cuda = b.option(bool, "backend-cuda", "Build and test the optional CUDA pass-through backend") orelse false;
     const cuda_prefix = b.option([]const u8, "cuda-prefix", "CUDA toolkit prefix (include/ and lib/ or lib64/)") orelse "/usr";
 
@@ -94,6 +95,10 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "tritonserver_zig", .module = mod }},
         }),
     });
+    const server_build_options = b.addOptions();
+    server_build_options.addOption(bool, "grpc", grpc);
+    exe.root_module.addOptions("server_build_options", server_build_options);
+    if (grpc) exe.root_module.linkSystemLibrary("tritonzig_grpc", .{ .use_pkg_config = .no });
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

@@ -1,0 +1,7 @@
+{
+  global:
+    tritonzig_grpc_start;
+    tritonzig_grpc_prepare_shutdown;
+    tritonzig_grpc_stop;
+  local: *;
+};

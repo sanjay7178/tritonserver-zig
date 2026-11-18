@@ -1,6 +1,7 @@
 const std = @import("std");
 const Server = @import("../server.zig").Server;
-const Request = @import("../inference/request.zig").Request;
+const inference_request = @import("../inference/request.zig");
+const Request = inference_request.Request;
 const tensor = @import("../inference/tensor.zig");
 const response = @import("../inference/response.zig");
 const model = @import("../model/metadata.zig");
@@ -322,16 +323,8 @@ const State = struct {
                 byte_count = std.math.add(usize, byte_count, job.inputs[index].data.len) catch return error.ShapeOverflow;
                 cursor = job.batch_next;
             }
-            const bytes = try alloc.alignedAlloc(u8, .@"16", byte_count);
-            var offset: usize = 0;
-            cursor = batch;
-            while (cursor) |job| {
-                const part = job.inputs[index].data;
-                @memcpy(bytes[offset..][0..part.len], part);
-                offset += part.len;
-                cursor = job.batch_next;
-            }
-            try request.addInputBytes(input.datatype, input.name, dims, bytes);
+            const source: BatchInput = .{ .first = batch, .index = index };
+            try inference_request.addInputWith(&request, input.datatype, input.name, dims, byte_count, source, BatchInput.copy);
         }
         for (batch.outputs) |name| try request.requestOutput(name);
         var aggregate = try self.server.inferSync(work, &request);
@@ -362,6 +355,22 @@ const State = struct {
     }
 };
 
+const BatchInput = struct {
+    first: *const Job,
+    index: usize,
+
+    fn copy(self: BatchInput, destination: []u8) void {
+        var remaining = destination;
+        var cursor: ?*const Job = self.first;
+        while (cursor) |job| : (cursor = job.batch_next) {
+            const part = job.inputs[self.index].data;
+            @memcpy(remaining[0..part.len], part);
+            remaining = remaining[part.len..];
+        }
+        std.debug.assert(remaining.len == 0);
+    }
+};
+
 fn deadlineFor(accepted_ns: u64, wait_us: u64) u64 {
     return accepted_ns +| (wait_us * std.time.ns_per_us);
 }
@@ -379,6 +388,13 @@ fn compatible(first: *const Job, other: *const Job) bool {
     return true;
 }
 
+/// Project batching layer over Triton's C API. For upstream comparison, see
+/// core@eaff04d5d77eb1c32e98c573c90fb78b363c88c0, src/dynamic_batch_scheduler.cc
+/// (Enqueue, GetDynamicBatch, BatcherThread) and src/scheduler_utils.cc
+/// (RequiredEqualInputs). Native aggregation is disabled for admitted models.
+/// Native dispatch still runs. This layer groups fixed-width inputs by shape
+/// and output selection and has its own batching delay and ordering policy.
+///
 /// A move-only owner of heap-stable scheduling state. Submission and shutdown
 /// may overlap. Serialize destruction with all other API calls. Keep Server
 /// stable/alive until shutdown returns; do not poll or stop it concurrently.

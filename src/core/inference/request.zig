@@ -51,19 +51,7 @@ pub const Request = struct {
     }
 
     pub fn addInputBytes(self: *Request, datatype: DataType, name: []const u8, shape: []const i64, bytes: []const u8) !void {
-        const handle = try self.ensureIdle();
-        if (try tensor.byteCount(datatype, shape) != bytes.len) return error.ElementCountMismatch;
-        for (self.inputs.items) |existing| if (std.mem.eql(u8, existing, name)) return error.DuplicateInput;
-        const alloc = self.storage.allocator();
-        const name_z = try self.nameZ(name);
-        const dims = try alloc.dupe(i64, shape);
-        const copy = try alloc.alignedAlloc(u8, .@"16", bytes.len);
-        @memcpy(copy, bytes);
-        try self.inputs.ensureUnusedCapacity(alloc, 1);
-        try errors.check(c.TRITONSERVER_InferenceRequestAddInput(handle, name_z, @backingInt(datatype), dims.ptr, @intCast(dims.len)));
-        errdefer errors.check(c.TRITONSERVER_InferenceRequestRemoveInput(handle, name_z)) catch {};
-        try errors.check(c.TRITONSERVER_InferenceRequestAppendInputData(handle, name_z, if (copy.len == 0) null else copy.ptr, copy.len, c.TRITONSERVER_MEMORY_CPU, 0));
-        self.inputs.appendAssumeCapacity(name_z);
+        try addInputWith(self, datatype, name, shape, bytes.len, bytes, copyInput);
     }
 
     pub fn requestOutput(self: *Request, name: []const u8) !void {
@@ -86,6 +74,38 @@ pub const Request = struct {
         self.outputs = .empty;
     }
 };
+
+fn copyInput(source: []const u8, destination: []u8) void {
+    @memcpy(destination, source);
+}
+
+/// Internal writer for inputs assembled by the scheduler. The writer fills the
+/// whole buffer synchronously before C sees it and must not retain the slice.
+pub fn addInputWith(
+    request: *Request,
+    datatype: DataType,
+    name: []const u8,
+    shape: []const i64,
+    byte_count: usize,
+    context: anytype,
+    comptime fill: fn (@TypeOf(context), []u8) void,
+) !void {
+    const handle = try request.ensureIdle();
+    if (try tensor.byteCount(datatype, shape) != byte_count) return error.ElementCountMismatch;
+    for (request.inputs.items) |existing| if (std.mem.eql(u8, existing, name)) return error.DuplicateInput;
+    const alloc = request.storage.allocator();
+    const name_z = try request.nameZ(name);
+    const dims = try alloc.dupe(i64, shape);
+    try request.inputs.ensureUnusedCapacity(alloc, 1);
+    const data = try alloc.alignedAlloc(u8, .@"16", byte_count);
+    fill(context, data);
+    try errors.check(c.TRITONSERVER_InferenceRequestAddInput(handle, name_z, @backingInt(datatype), dims.ptr, @intCast(dims.len)));
+    errdefer errors.check(c.TRITONSERVER_InferenceRequestRemoveInput(handle, name_z)) catch {};
+    // Triton retains this pointer. Request keeps the allocation until native
+    // ownership has returned and the C request has been deleted.
+    try errors.check(c.TRITONSERVER_InferenceRequestAppendInputData(handle, name_z, if (data.len == 0) null else data.ptr, data.len, c.TRITONSERVER_MEMORY_CPU, 0));
+    request.inputs.appendAssumeCapacity(name_z);
+}
 
 pub fn check(err: ?*c.TRITONSERVER_Error, on_error: ?*const fn ([]const u8) void) errors.TritonErr!void {
     if (err) |e| if (on_error) |report| report(std.mem.span(c.TRITONSERVER_ErrorMessage(e)));

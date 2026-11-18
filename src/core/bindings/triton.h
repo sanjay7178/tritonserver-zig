@@ -31,10 +31,14 @@ typedef struct TRITONBACKEND_ModelInstanceResponseStatistics TRITONBACKEND_Model
 typedef struct TRITONBACKEND_BackendAttribute TRITONBACKEND_BackendAttribute;
 typedef struct TRITONBACKEND_Batcher TRITONBACKEND_Batcher;
 #include <triton/core/tritonbackend.h>
-// Literal callback typedefs avoid a pinned translate-c/debug-info issue:
+// Project aliases for core@eaff04d5d77eb1c32e98c573c90fb78b363c88c0,
+// include/triton/core/tritonbackend.h. The workaround applies to Zig
+// 0.17.0-dev.1936+5a625d5f3 and translate-c@0944784e197e419433a21d4b28bfc65e48e7d514.
 // typeof(function) becomes Zig @TypeOf(function), which emits relocations to
-// plugin symbols even in resolve-only clients. C checks every alias against
-// the authoritative upstream declaration so signature drift is a build error.
+// plugin symbols in Debug even in resolve-only clients. The C checks fold
+// type compatibility into enum constants against the upstream declarations.
+// Before removing these aliases, link and inspect a Debug resolve-only
+// client with the replacement toolchain and check for callback relocations.
 typedef TRITONSERVER_Error* TRITONZIG_BackendInitializeFn(TRITONBACKEND_Backend*);
 typedef TRITONZIG_BackendInitializeFn TRITONZIG_BackendFinalizeFn;
 typedef TRITONSERVER_Error* TRITONZIG_ModelInitializeFn(TRITONBACKEND_Model*);

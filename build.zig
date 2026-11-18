@@ -185,6 +185,9 @@ fn addBackend(b: *std.Build, bindings: *std.Build.Module, copy_engine: *std.Buil
     const lib = b.addLibrary(.{
         .name = b.fmt("triton_{s}", .{name}),
         .linkage = .dynamic,
+        // Keep the validated LLVM/LLD path for strict linking and the export map.
+        // The pinned self-hosted Debug path can also export UBSan helpers.
+        // Recheck exports and the resolve-only loader on upgrades.
         .use_llvm = true,
         .use_lld = true,
         .root_module = b.createModule(.{

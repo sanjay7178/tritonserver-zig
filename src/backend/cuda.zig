@@ -32,6 +32,15 @@ pub const Context = struct {
         self.stream = null;
     }
 
+    /// A transfer involving device memory may continue after return. Make the
+    /// source ready before calling copy, including work on other streams. Keep
+    /// both allocations valid and the source unmodified, and wait for finish
+    /// before using the destination. Drain earlier copies if a later copy fails.
+    /// Pointer attributes identify memory kind and device. The caller supplies
+    /// valid allocation extents and establishes stream dependencies.
+    ///
+    /// Device-0 subset of backend@efad1152ed836d336bb04cc4095ffe026e780bb7,
+    /// src/backend_common.cc::CopyBuffer. This engine supports same-device copies.
     pub fn copy(self: *Context, destination: b.Buffer, source: b.ConstBuffer) !void {
         if (self.stream == null) return error.CudaContextClosed;
         try destination.validate();

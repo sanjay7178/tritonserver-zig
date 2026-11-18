@@ -174,6 +174,14 @@ const RealApi = struct {
     }
 };
 
+// Compare backend@efad1152ed836d336bb04cc4095ffe026e780bb7,
+// examples/backends/minimal/src/minimal.cc::TRITONBACKEND_ModelInstanceExecute.
+// This SDK deletes previously created responses if a later ResponseNew fails.
+// Request ownership stays with Triton until every response is prepared.
+// At core@eaff04d5d77eb1c32e98c573c90fb78b363c88c0, src/backend_model.cc
+// takes the response in ResponseSend but borrows the error argument. After
+// commitment, send each result, delete its error, and release each request.
+// The Impl/Api tests check rollback and cleanup before and after commitment.
 fn executeRequests(comptime Impl: type, comptime Api: type, alloc: std.mem.Allocator, instance: *c.TRITONBACKEND_ModelInstance, requests: []const ?*c.TRITONBACKEND_Request) ?*c.TRITONSERVER_Error {
     for (requests) |request| if (request == null) return errorToC(error.InvalidArg);
     const responses = alloc.alloc(?*c.TRITONBACKEND_Response, requests.len) catch |err| return errorToC(err);

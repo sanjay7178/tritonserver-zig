@@ -87,6 +87,8 @@ again to use the installed runtime.
 Restrict `pkg-config` to the Pixi environment during the native build so gRPC
 discovers libraries from the same environment as the compiler. The dedicated
 build cache keeps the Pixi objects separate from builds using a host compiler.
+The explicit Zig target selects its bundled glibc support at the same 2.28
+baseline as the Pixi C/C++ sysroot.
 
 ```sh
 tools/experiments/tensorrt_graphs/setup.sh "$PWD/.deps/tensorrt-graphs"
@@ -96,7 +98,8 @@ PKG_CONFIG_PATH= \
     PKG_CONFIG_LIBDIR="$CONDA_PREFIX/lib/pkgconfig:$CONDA_PREFIX/share/pkgconfig" \
     TRITON_GRPC_CACHE="$PWD/.deps/native-grpc-pixi" \
     tools/build/build_grpc_frontend.sh "$TRT_PREFIX" gpu
-zig build -Dgrpc=true -Dtriton-prefix="$TRT_PREFIX" -Doptimize=ReleaseSafe
+zig build -Dgrpc=true -Dtarget=x86_64-linux-gnu.2.28 \
+    -Dtriton-prefix="$TRT_PREFIX" -Doptimize=ReleaseSafe
 unzip -j "${TRITON_DOWNLOAD_CACHE:-.deps/tensorrt-graphs/downloads}/tritonserver.zip" \
     tritonserver/bin/tritonserver -d .deps/stock
 ```

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/../.."
-install_dir="$PWD/core/build/install"
+install_dir="${TRITON_INSTALL_DIR:-$PWD/core/build/install}"
 output_dir="$PWD/.zig-cache/phase2/backends/minimal"
 rapidjson_include="${RAPIDJSON_INCLUDE_DIR:-/usr/include}"
 if [ ! -f "$rapidjson_include/rapidjson/document.h" ]; then

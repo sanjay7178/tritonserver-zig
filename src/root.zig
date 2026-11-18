@@ -17,10 +17,17 @@ pub const ModelList = @import("core/model/metadata.zig").ModelList;
 pub const ModelInfo = @import("core/model/metadata.zig").ModelInfo;
 pub const ModelMetadata = @import("core/model/metadata.zig").ModelMetadata;
 pub const TensorInfo = @import("core/model/metadata.zig").TensorInfo;
+pub const SchedulingInfo = @import("core/model/metadata.zig").SchedulingInfo;
 pub const Request = @import("core/inference/request.zig").Request;
 pub const PendingInference = @import("core/inference/operation.zig").PendingInference;
 pub const InferenceResponse = @import("core/inference/response.zig").InferenceResponse;
 pub const OutputTensor = @import("core/inference/tensor.zig").OutputTensor;
+pub const InputTensor = @import("core/inference/tensor.zig").InputTensor;
+pub const Scheduler = @import("core/scheduler/scheduler.zig").Scheduler;
+pub const SchedulerOptions = @import("core/scheduler/scheduler.zig").SchedulerOptions;
+pub const SubmitOptions = @import("core/scheduler/scheduler.zig").SubmitOptions;
+pub const SchedulerStats = @import("core/scheduler/scheduler.zig").SchedulerStats;
+pub const ScheduledInference = @import("core/scheduler/scheduler.zig").ScheduledInference;
 
 test {
     _ = @import("tests/integration/bindings_test.zig");
@@ -30,4 +37,10 @@ test {
     _ = @import("tests/integration/inference_test.zig");
     _ = @import("tests/unit/tensor_test.zig");
     _ = @import("core/inference/operation.zig");
+    _ = @import("core/scheduler/queue.zig");
+    _ = @import("core/scheduler/scheduler.zig");
+    _ = @import("tests/unit/scheduler_tensor_test.zig");
+    _ = @import("tests/unit/scheduler_response_test.zig");
+    _ = @import("tests/unit/scheduler_metadata_test.zig");
+    _ = @import("tests/integration/scheduler_test.zig");
 }

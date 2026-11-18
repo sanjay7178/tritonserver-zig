@@ -31,6 +31,15 @@ demo:
 infer-demo:
     zig build infer-demo
 
+# Prove Zig merges requests and independently owns each returned result
+scheduler-demo:
+    zig build scheduler-demo
+
+# Compare unbatched and batched throughput; pass --gpu-index to sample a GPU
+[positional-arguments]
+scheduler-bench *args:
+    zig build scheduler-bench -Doptimize=ReleaseFast -- "$@"
+
 # build the linker
 # Configure and build only libtritonserver.so; skip Python wheel.
 linker:

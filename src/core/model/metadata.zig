@@ -9,11 +9,18 @@ pub const TensorInfo = struct {
     /// Protocol shape, including the implicit leading -1 for batched models.
     shape: []const i64,
 };
+pub const SchedulingInfo = struct {
+    dynamic_batching: bool = false,
+    sequence_batching: bool = false,
+    decoupled: bool = false,
+    special_tensors: bool = false,
+};
 pub const ModelMetadata = struct {
     platform: []const u8,
     max_batch_size: u32,
     inputs: []const TensorInfo,
     outputs: []const TensorInfo,
+    scheduling: SchedulingInfo = .{},
 };
 pub const ModelInfo = struct {
     name: []const u8,
@@ -43,7 +50,38 @@ const IndexEntry = struct {
 };
 const WireTensor = struct { name: []const u8, datatype: []const u8, shape: []const i64 };
 const WireMetadata = struct { platform: []const u8 = "", inputs: []const WireTensor, outputs: []const WireTensor };
-const WireConfig = struct { max_batch_size: i64 = 0 };
+const WireConfigTensor = struct {
+    is_shape_tensor: bool = false,
+    allow_ragged_batch: bool = false,
+    optional: bool = false,
+
+    fn special(self: WireConfigTensor) bool {
+        return self.is_shape_tensor or self.allow_ragged_batch or self.optional;
+    }
+};
+const WireTransactionPolicy = struct { decoupled: bool = false };
+const WireConfig = struct {
+    max_batch_size: i64 = 0,
+    dynamic_batching: ?std.json.Value = null,
+    sequence_batching: ?std.json.Value = null,
+    model_transaction_policy: ?WireTransactionPolicy = null,
+    input: []const WireConfigTensor = &.{},
+    output: []const WireConfigTensor = &.{},
+    batch_input: []const std.json.Value = &.{},
+    batch_output: []const std.json.Value = &.{},
+
+    fn scheduling(self: WireConfig) SchedulingInfo {
+        var info: SchedulingInfo = .{
+            .dynamic_batching = self.dynamic_batching != null,
+            .sequence_batching = self.sequence_batching != null,
+            .decoupled = if (self.model_transaction_policy) |policy| policy.decoupled else false,
+            .special_tensors = self.batch_input.len != 0 or self.batch_output.len != 0,
+        };
+        for (self.input) |input| info.special_tensors = info.special_tensors or input.special();
+        for (self.output) |output| info.special_tensors = info.special_tensors or output.special();
+        return info;
+    }
+};
 const parse_options: std.json.ParseOptions = .{ .allocate = .alloc_always, .ignore_unknown_fields = true };
 
 pub fn parseIndex(parent: std.mem.Allocator, bytes: []const u8) !ModelList {
@@ -94,5 +132,6 @@ pub fn parseMetadata(alloc: std.mem.Allocator, metadata_json: []const u8, config
         .max_batch_size = @intCast(config.max_batch_size),
         .inputs = try convertTensors(alloc, wire.inputs),
         .outputs = try convertTensors(alloc, wire.outputs),
+        .scheduling = config.scheduling(),
     };
 }

@@ -145,7 +145,7 @@ test "Zig scheduler batches B1 B3 B4 through the Zig backend and restores caller
     defer destroyServer(&server);
     var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "zig_fixed_batch", 1, .{
         .max_batch_size = 8,
-        .max_wait_us = 1_000_000,
+        .max_wait_us = 10_000_000,
         .worker_count = 1,
     });
     defer scheduler.deinit();
@@ -155,6 +155,7 @@ test "Zig scheduler batches B1 B3 B4 through the Zig backend and restores caller
     var futures: [counts.len]t.ScheduledInference = undefined;
     var submitted: usize = 0;
     defer for (futures[0..submitted]) |*future| future.deinit();
+    errdefer scheduler.shutdown();
     var offset: usize = 0;
     for (&futures, counts) |*future, count| {
         const shape = [_]i64{ @intCast(count), 4 };
@@ -163,11 +164,8 @@ test "Zig scheduler batches B1 B3 B4 through the Zig backend and restores caller
         submitted += 1;
         offset += count;
     }
-    scheduler.shutdown();
-    const stats = scheduler.stats();
-    try testing.expectEqual(@as(u64, 1), stats.dispatched_batches);
-    try testing.expectEqual(@as(u64, 8), stats.dispatched_samples);
-    try testing.expectEqual(@as(u64, 0), stats.failed_requests);
+    // Wait for normal batching before shutdown, which can flush a partial
+    // bucket while some of the accepted inputs are still in the ingress queue.
     offset = 0;
     for (&futures, counts) |*future, count| {
         var response = try future.wait();
@@ -176,6 +174,11 @@ test "Zig scheduler batches B1 B3 B4 through the Zig backend and restores caller
         try expectBytes(&response, .int32, &shape, std.mem.sliceAsBytes(inputs[offset * 4 ..][0 .. count * 4]));
         offset += count;
     }
+    scheduler.shutdown();
+    const stats = scheduler.stats();
+    try testing.expectEqual(@as(u64, 1), stats.dispatched_batches);
+    try testing.expectEqual(@as(u64, 8), stats.dispatched_samples);
+    try testing.expectEqual(@as(u64, 0), stats.failed_requests);
 }
 
 const ConcurrentCaller = struct {

@@ -13,6 +13,33 @@ requires improved throughput and measured GPU utilization above 80 percent.
 CPU tests cannot establish that target. The optional hardware experiments below
 record CUDA provenance, numerical checks and measurements for synthetic models.
 
+## Upstream comparison
+
+This scheduler adds grouping above the pinned Triton C API. Admitted models
+have native aggregation disabled. Triton still owns native scheduling,
+dispatch, and backend execution. Compare behavior at these boundaries when
+updating the upstream pins.
+
+| Zig symbols | Upstream reference and relationship |
+| --- | --- |
+| `Scheduler.init`, `WireConfig.scheduling` | Model eligibility and version selection are project policy. Compare `DynamicBatchScheduler::Create` and the model config returned by the [C API][core-api]. |
+| `Scheduler.submit`, `State.enter/leave/reserve` | Bounded admission is project policy. Compare `DynamicBatchScheduler::Enqueue` and `PriorityQueue::Enqueue`. |
+| `State.append`, `compatible`, `State.dispatch` | Shape/output grouping and oldest-arrival deadlines are project policy. Compare `DynamicBatchScheduler::GetDynamicBatch/BatcherThread` and `RequiredEqualInputs`. |
+| `MpscQueue.push/take`, `Wake`, `sync.now` | The CAS stack, list reversal, and Linux eventfd/ppoll wakeups are project code. |
+| `State.execute`, `addInputWith` | Zig composes fixed-width CPU inputs in request storage and submits them through the [C API][core-api]. |
+| `response.clone/sliceBatch`, `ScheduledInference.wait/deinit`, `Scheduler.shutdown/deinit` | Owned result splitting and shutdown draining are project code. Compare output slicing in [BackendOutputResponder][output-responder] and the native response/release callbacks in the [C API][core-api]. |
+
+The Zig layer exposes its own grouping rules. Native preferred batch sizes,
+priority levels, request deadlines, cancellation and response ordering
+policies are outside its API. Compare [DynamicBatchScheduler][core-scheduler]
+and [scheduler utilities][core-utils] at the pin. The native-batching rejection,
+mixed dimensions, output selection, and shutdown tests exercise the boundary.
+
+[core-api]: https://github.com/triton-inference-server/core/blob/eaff04d5d77eb1c32e98c573c90fb78b363c88c0/include/triton/core/tritonserver.h
+[core-scheduler]: https://github.com/triton-inference-server/core/blob/eaff04d5d77eb1c32e98c573c90fb78b363c88c0/src/dynamic_batch_scheduler.cc
+[core-utils]: https://github.com/triton-inference-server/core/blob/eaff04d5d77eb1c32e98c573c90fb78b363c88c0/src/scheduler_utils.cc
+[output-responder]: https://github.com/triton-inference-server/backend/blob/efad1152ed836d336bb04cc4095ffe026e780bb7/src/backend_output_responder.cc
+
 ## Run the CPU demonstration
 
 ```sh
@@ -61,7 +88,9 @@ _ = statistics;
 
 `InputTensor` is a borrowed view. `submit` validates and copies names, shapes
 and data before returning. It is safe to reuse the caller's input buffer after
-a successful submission. A submitted handle owns its completion state; call
+a successful submission. The worker fills the aggregate buffers directly in
+the native request's Zig arena. The request retains them through both response
+FINAL and request RELEASE_ALL. A submitted handle owns its completion state; call
 `deinit` even if `wait` fails. A successful `wait` transfers an independently
 owned `InferenceResponse` to the caller. Release that response separately.
 `wait` is single-use. A future remains usable after scheduler shutdown or
@@ -141,6 +170,12 @@ runs and alternating order in an external harness help assess thermal and
 ordering effects for serious performance comparisons.
 
 One JSON report is written to stdout. Triton and diagnostic logs use stderr.
+The report identifies `implementation: "zig_scheduler"` and
+`comparison: "batch1_vs_batched"` because both cases run the Zig scheduler.
+The fixture build scripts invoke C++ independently without explicit
+optimization flags. Zig's `-Doptimize=ReleaseFast` applies to Zig code.
+Record the native compiler and optimization flags before comparing this
+implementation against native batching.
 It contains completed requests/samples, samples per second, end-to-end
 nearest-rank latency p50/p95/p99 in microseconds, mean queue latency, dispatch
 count, mean dispatched batch size, and the batched/baseline throughput ratio.

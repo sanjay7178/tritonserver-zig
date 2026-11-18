@@ -417,6 +417,8 @@ pub fn main(init: std.process.Init) !void {
     const ratio = batched.samples_per_second / baseline.samples_per_second;
     const gpu_target: ?bool = if (batched.gpu_utilization_mean_percent) |mean| mean > 80 else null;
     const report = .{
+        .implementation = "zig_scheduler",
+        .comparison = "batch1_vs_batched",
         .model = options.model,
         .version = options.version,
         .concurrency = options.concurrency,

@@ -116,7 +116,7 @@ test "scheduler combines mixed logical batch sizes and splits each complete resu
     try testing.expectEqual(@as(u64, 1), stats.dispatched_batches);
 }
 
-test "scheduler canonicalizes multiple inputs and requested output order before merging" {
+test "scheduler merges large inputs with different caller input and output orders" {
     var server = try startServer();
     defer destroyServer(&server);
     var scheduler = try t.Scheduler.init(testing.allocator, testing.io, &server, "phase4_multi", -1, .{
@@ -129,16 +129,27 @@ test "scheduler canonicalizes multiple inputs and requested output order before 
     try testing.expectError(error.InvalidShape, scheduler.submit(testing.allocator, &.{ first_input, mismatched }, .{}));
     var futures: [8]?t.ScheduledInference = @splat(null);
     defer for (&futures) |*future| if (future.*) |*value| value.deinit();
-    var expected_zero: [8][4]i32 = undefined;
-    var expected_one: [8][4]i32 = undefined;
-    for (&expected_zero, &expected_one, 0..) |*zero, *one, i| {
-        const base: i32 = @intCast(i * 10);
-        zero.* = .{ base + 1, base + 2, base + 3, base + 4 };
-        one.* = .{ -1001 - base, -1002 - base, -1003 - base, -1004 - base };
-        var caller_zero = zero.*;
-        var caller_one = one.*;
-        const input_zero = try t.InputTensor.fromSlice(i32, "IN0", &.{ 1, 4 }, &caller_zero);
-        const input_one = try t.InputTensor.fromSlice(i32, "IN1", &.{ 1, 4 }, &caller_one);
+    // Eight jobs with two 64 KiB tensors each put 1 MiB of input in the
+    // native request and exercise request arena growth across inputs.
+    const width = 16 * 1024;
+    const shape: []const i64 = &.{ 1, width };
+    const expected_zero = try testing.allocator.alloc([width]i32, futures.len);
+    defer testing.allocator.free(expected_zero);
+    const expected_one = try testing.allocator.alloc([width]i32, futures.len);
+    defer testing.allocator.free(expected_one);
+    const caller_zero = try testing.allocator.alloc(i32, width);
+    defer testing.allocator.free(caller_zero);
+    const caller_one = try testing.allocator.alloc(i32, width);
+    defer testing.allocator.free(caller_one);
+    for (expected_zero, expected_one, 0..) |*zero, *one, i| {
+        for (zero, one, 0..) |*a, *b, j| {
+            a.* = @intCast(i * width + j + 1);
+            b.* = -a.*;
+        }
+        @memcpy(caller_zero, zero);
+        @memcpy(caller_one, one);
+        const input_zero = try t.InputTensor.fromSlice(i32, "IN0", shape, caller_zero);
+        const input_one = try t.InputTensor.fromSlice(i32, "IN1", shape, caller_one);
         const inputs: [2]t.InputTensor = if (i % 2 == 0)
             .{ input_zero, input_one }
         else
@@ -148,19 +159,19 @@ test "scheduler canonicalizes multiple inputs and requested output order before 
         else
             &.{ "BATCH_INFO", "OUT1", "OUT0" };
         futures[i] = try scheduler.submit(testing.allocator, &inputs, .{ .outputs = outputs });
-        @memset(&caller_zero, 0);
-        @memset(&caller_one, 0);
+        @memset(caller_zero, 0);
+        @memset(caller_one, 0);
     }
     scheduler.shutdown();
     var execution: ?i64 = null;
-    for (&futures, expected_zero, expected_one) |*future, zero, one| {
+    for (&futures, expected_zero, expected_one) |*future, *zero, *one| {
         var response = try future.*.?.wait();
         defer response.deinit();
         try testing.expectEqual(@as(usize, 3), response.outputs.len);
-        try expectOutput(&response, &.{ 1, 4 }, &zero);
+        try expectOutput(&response, shape, zero);
         const output_one = try response.output("OUT1");
-        try testing.expectEqualSlices(i64, &.{ 1, 4 }, output_one.shape);
-        try testing.expectEqualSlices(i32, &one, try output_one.asSlice(i32));
+        try testing.expectEqualSlices(i64, shape, output_one.shape);
+        try testing.expectEqualSlices(i32, one, try output_one.asSlice(i32));
         execution = try expectBatchInfo(&response, 1, 8, execution);
     }
     const stats = scheduler.stats();

@@ -1,9 +1,11 @@
 const std = @import("std");
 
 /// Intrusive many-producer/single-consumer queue. Nodes have `queue_next: ?*T`.
-/// Producers only touch their own unpublished node and the atomic head. The
-/// consumer detaches a complete list and reverses it into publication order.
-/// Unlike a linked-tail queue, a paused producer cannot leave a missing link.
+/// A producer publishes a fully initialized node on the intrusive stack at
+/// its successful release CAS. The previous head is only a pointer value.
+/// Only the consumer exchanges the head with null, then reverses the detached
+/// list into publication order. Producers never dereference detached nodes.
+/// This avoids the exchange-then-link gap in Vyukov's linked-tail MPSC queue.
 pub fn MpscQueue(comptime T: type) type {
     return struct {
         head: std.atomic.Value(?*T) = .init(null),

@@ -170,6 +170,18 @@ pub fn build(b: *std.Build) void {
     gpu_verify_cmd.addPassthruArgs();
     b.step("gpu-verify", "Check GPU experiment outputs and Zig batch partitioning").dependOn(&gpu_verify_cmd.step);
 
+    const tensorrt_bench = b.addExecutable(.{
+        .name = "tensorrt-bench",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/experiments/tensorrt_graphs/client.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "tritonserver_zig", .module = mod }},
+        }),
+    });
+    const install_tensorrt_bench = b.addInstallArtifact(tensorrt_bench, .{});
+    b.step("tensorrt-bench", "Build the embedded TensorRT experiment client").dependOn(&install_tensorrt_bench.step);
+
     const test_step = b.step("test", "Test bindings, server wrappers and real CPU models");
     const mod_tests = b.addTest(.{ .root_module = mod });
     const run_mod_tests = b.addRunArtifact(mod_tests);

@@ -25,11 +25,11 @@ zig-out/bin/tritonserver_zig --grpc-listen 127.0.0.1:8001 \
     --model-repository /path/to/models --backend-directory /path/to/backends
 ```
 
-Use `gpu` with the GPU Triton prefix from the
-[TensorRT setup](../tools/experiments/tensorrt_graphs/README.md). Source its
-environment before building and before starting the executable so the GPU core
-and backend can locate their dependencies. The frontend hands inline tensors
-to that core, which owns GPU execution.
+Use `gpu` with a GPU-enabled Triton prefix. Load its runtime environment
+before building and starting the executable so the GPU core and backend
+can locate their dependencies. The frontend hands inline tensors to that
+core, which owns GPU execution.
+[NVIDIA Triton 2.69.0 release](https://github.com/triton-inference-server/server/releases/tag/v2.69.0)
 
 ## Validate
 

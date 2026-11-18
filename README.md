@@ -260,6 +260,5 @@ for complete commands, input format, limitations and GPU validation guidance.
 The [optional GPU experiments](docs/scheduler.md#optional-gpu-experiments) include
 real CUDA/cuBLAS and ONNX Runtime workloads, numerical verification and recorded
 hardware results. Their dependencies and generated weights stay outside CPU CI.
-The [native TensorRT CUDA Graph benchmark](tools/experiments/tensorrt_graphs/README.md)
-loads a GPU-built `.plan` through the embedded Zig wrapper and compares explicit
-batches with CUDA Graph replay on and off.
+The [manual TensorRT GPU tests](tests/fixtures/tensorrt/README.md) verify native
+plan inference and CUDA Graph replay through the embedded Zig wrapper.

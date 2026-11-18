@@ -47,11 +47,34 @@ python tests/integration/grpc_native.py \
 The check exercises NVIDIA's client, the passthrough tensor, port collision,
 SIGTERM during inference, and the loaded Triton core path on Linux.
 
+## Benchmark TensorRT over loopback
+
+Run the [in-process benchmark](../tools/experiments/tensorrt_graphs/README.md)
+first to generate the plan, fixtures, and report. Build the gRPC executable with
+that same GPU prefix. Extract the stock `tritonserver` executable from the same
+NVIDIA release archive and load the GPU environment for both processes.
+
+```sh
+unzip -j /path/to/tritonserver.zip tritonserver/bin/tritonserver -d .deps/stock
+python -B tools/experiments/tensorrt_graphs/grpc_benchmark.py \
+    --zig-server zig-out/bin/tritonserver_zig \
+    --stock-server .deps/stock/tritonserver --triton-prefix "$TRITON_PREFIX" \
+    --artifacts /path/to/in-process-results --output-dir .deps/grpc-results
+```
+
+The benchmark runs one request in flight and compares explicit batches of 1
+and 8 with graphs off and on. It checks the plan and library digests against
+the in-process run, verifies output against the same NumPy reference, and
+counts backend `cudaGraphLaunch` calls in separate proof runs. The latency
+includes Python tensor marshalling, the loopback RPC and response decoding.
+See the [RTX 4050 gRPC measurements](results/tensorrt-graphs/README.md#loopback-grpc)
+for the three-path comparison.
+
 ## Upgrade
 
 The build helper pins the NVIDIA r26.05 server, common, and third-party
 sources together. Rebuild the adapter when upgrading those sources or the
-installed core. Run the CPU client check and verify inference on the selected
-GPU runtime. The bridge borrows the server handle and keeps the
+installed core. Run the CPU client check and repeat the TensorRT comparison on
+the selected GPU runtime. The bridge borrows the server handle and keeps the
 native frontend alive while Triton drains accepted work.
 [Native endpoint](https://github.com/triton-inference-server/server/tree/r26.05/src/grpc)

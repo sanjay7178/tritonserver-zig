@@ -73,3 +73,25 @@ The SQLite export contains the graphs-on GPU records in
 `CUPTI_ACTIVITY_KIND_GRAPH_TRACE`, individual kernels in
 `CUPTI_ACTIVITY_KIND_KERNEL`, and the request-sized transfers in
 `CUPTI_ACTIVITY_KIND_MEMCPY`. Activity timestamps are in nanoseconds.
+
+## Loopback gRPC
+
+The Zig executable and stock NVIDIA Triton 2.69.0 served the same model
+repositories, plan, backend and tensor fixtures on the same RTX 4050. The Zig
+bridge used NVIDIA's r26.05 gRPC frontend with gRPC 1.54.3 and Protobuf 3.21.12.
+Both gRPC paths used the same Python Triton client 2.69.0 and one request in
+flight. Each case had 1,000 warmup and 20,000 timed requests.
+
+| Batch | Graphs | Embedded Zig samples/s | Zig gRPC samples/s | Stock gRPC samples/s | Zig gRPC p99, µs | Stock gRPC p99, µs |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | Off | 9,365 | 1,713 | 1,852 | 1,228 | 1,104 |
+| 1 | On | 10,920 | 2,045 | 1,991 | 1,014 | 1,089 |
+| 8 | Off | 66,141 | 13,620 | 13,351 | 1,398 | 1,237 |
+| 8 | On | 73,261 | 13,723 | 14,683 | 1,343 | 1,018 |
+
+Each server recorded 12 successful backend graph launches for 12 separate
+proof requests per graphs-on case and zero launches with graphs off. Maximum
+absolute error against the reference was below 1.2 × 10⁻⁶. The gRPC timings
+include Python marshalling, loopback transport, and response decoding. The
+embedded columns are from the earlier in-process run with the same plan.
+[Full gRPC report](grpc-rtx4050.json) · [Rerun commands](../../grpc.md#benchmark-tensorrt-over-loopback)

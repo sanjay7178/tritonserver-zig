@@ -47,25 +47,69 @@ python tests/integration/grpc_native.py \
 The check exercises NVIDIA's client, the passthrough tensor, port collision,
 SIGTERM during inference, and the loaded Triton core path on Linux.
 
-## Benchmark TensorRT over loopback
+## Set up the build environment with Pixi
 
-Load the [TensorRT setup environment](../tools/experiments/tensorrt_graphs/README.md)
-and build the gRPC executable with its GPU prefix. Extract the stock
-`tritonserver` executable from the same NVIDIA release archive. Prepare the
-shared plan and fixtures, then run both servers through NVIDIA's Python client.
+On Ubuntu x86-64, use Pixi 0.63.2 or newer, `dpkg-deb`, and a host NVIDIA driver
+compatible with CUDA 13.2. From the repository root, open the locked environment
+for the C/C++ compiler, CMake, Ninja, `uv`, and FFmpeg.
 
 ```sh
+pixi shell --locked
+```
+
+In the Pixi shell, download the repository's pinned Zig toolchain and extract
+the `libb64` development package into the checkout.
+
+```sh
+mkdir -p .deps
+zig_archive=zig-x86_64-linux-0.17.0-dev.1936+5a625d5f3.tar.xz
+curl --fail --location -o ".deps/$zig_archive" "https://zig.squirl.dev/$zig_archive" &&
+    printf '%s  %s\n' 38620c06ca57b175f7dab8f65c8001f9a67b0ff1987c344d4e64ccb72b57174f \
+        ".deps/$zig_archive" | sha256sum --check &&
+    tar -xf ".deps/$zig_archive" -C .deps
+export PATH="$PWD/.deps/${zig_archive%.tar.xz}:$PATH"
+zig version
+
+b64_archive=.deps/libb64-dev_1.2-5_amd64.deb
+curl --fail --location -o "$b64_archive" \
+    https://archive.ubuntu.com/ubuntu/pool/universe/libb/libb64/libb64-dev_1.2-5_amd64.deb &&
+    printf '%s  %s\n' 410e036ad4e4ba12792c974dcabb0449f85ca6d5905626e5560542cdd87f163b \
+        "$b64_archive" | sha256sum --check &&
+    dpkg-deb -x "$b64_archive" .deps/libb64
+export CMAKE_INCLUDE_PATH="$PWD/.deps/libb64/usr/include${CMAKE_INCLUDE_PATH:+:$CMAKE_INCLUDE_PATH}"
+export CMAKE_LIBRARY_PATH="$PWD/.deps/libb64/usr/lib/x86_64-linux-gnu${CMAKE_LIBRARY_PATH:+:$CMAKE_LIBRARY_PATH}"
+```
+
+Install the pinned NVIDIA runtime and build both server executables once per
+host. The runtime setup creates the Python environment used by the benchmarks.
+In a later shell, source its `env.sh` again to use the installed runtime.
+
+```sh
+tools/experiments/tensorrt_graphs/setup.sh "$PWD/.deps/tensorrt-graphs"
+source .deps/tensorrt-graphs/env.sh
+
 tools/build/build_grpc_frontend.sh "$TRT_PREFIX" gpu
 zig build -Dgrpc=true -Dtriton-prefix="$TRT_PREFIX" -Doptimize=ReleaseSafe
 unzip -j "${TRITON_DOWNLOAD_CACHE:-.deps/tensorrt-graphs/downloads}/tritonserver.zip" \
     tritonserver/bin/tritonserver -d .deps/stock
+```
+
+## Benchmark TensorRT over loopback
+
+Use the GPU runtime and both server executables from the build steps above.
+Choose a physical GPU index or UUID from `nvidia-smi -L` and a fresh
+output directory. Build the plan on each GPU you benchmark.
+
+```sh
+gpu=0
+run=.deps/bench-gpu0
 uv pip install --python "$TRT_PYTHON" 'tritonclient[grpc]==2.69.0'
 "$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/benchmark.py \
-    --prepare-only --triton-prefix "$TRT_PREFIX" --output-dir .deps/tensorrt-artifacts
+    --prepare-only --gpu "$gpu" --triton-prefix "$TRT_PREFIX" --output-dir "$run/fixed"
 "$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/grpc_benchmark.py \
     --zig-server zig-out/bin/tritonserver_zig \
     --stock-server .deps/stock/tritonserver --triton-prefix "$TRT_PREFIX" \
-    --artifacts .deps/tensorrt-artifacts --output-dir .deps/grpc-results
+    --gpu "$gpu" --artifacts "$run/fixed" --output-dir "$run/fixed-results"
 ```
 
 The benchmark compares explicit batches of 1 and 8 with graphs off and on.
@@ -83,18 +127,19 @@ The generated plans and references can also be passed to the
 
 ### Benchmark a YOLO video pipeline
 
-Use the same GPU build and stock server shown above. Install FFmpeg with
-FFprobe and add the video dependencies to the benchmark's Python environment.
+Use the same GPU build, stock server, and `gpu` and `run` variables shown above.
+Pixi supplies FFmpeg and FFprobe. Add the video dependencies to the benchmark's
+Python environment.
 
 ```sh
 uv pip install --python "$TRT_PYTHON" 'tritonclient[grpc]==2.69.0' \
     'onnx==1.17.0' 'Pillow==11.3.0'
 "$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/video_setup.py \
-    --output-dir .deps/yolo-video --gpu 0
+    --output-dir "$run/video" --gpu "$gpu"
 "$TRT_PYTHON" -B tools/experiments/tensorrt_graphs/video_benchmark.py \
     --zig-server zig-out/bin/tritonserver_zig \
     --stock-server .deps/stock/tritonserver --triton-prefix "$TRT_PREFIX" \
-    --artifacts .deps/yolo-video --output-dir .deps/yolo-video-results
+    --gpu "$gpu" --artifacts "$run/video" --output-dir "$run/video-results"
 ```
 
 The setup uses published YOLOv8n weights and normalizes the pinned
